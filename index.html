@@ -484,14 +484,11 @@
                     throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
                 }
                 
-                // Check if response is actually JSON
+                // Get content type and length
                 const contentType = response.headers.get('content-type');
-                if (!contentType || !contentType.includes('application/json')) {
-                    console.warn('Response may not be JSON. Content-Type:', contentType);
-                }
+                const contentLength = response.headers.get('content-length');
                 
                 // Show progress for large files
-                const contentLength = response.headers.get('content-length');
                 if (contentLength) {
                     const totalSize = parseInt(contentLength);
                     console.log(`Compressed file size: ${(totalSize / 1024 / 1024).toFixed(2)} MB`);
@@ -499,7 +496,6 @@
                 }
                 
                 // Check if file is gzip-compressed
-                const contentType = response.headers.get('content-type');
                 const isGzipped = dataSource.endsWith('.gz') || 
                                  contentType?.includes('gzip') ||
                                  contentType?.includes('application/gzip');
