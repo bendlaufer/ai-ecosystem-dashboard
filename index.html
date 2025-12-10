@@ -707,35 +707,18 @@
             } catch (error) {
                 console.error('Error loading graph data:', error);
                 
-                let errorMessage = `Error loading ${dataSource}. `;
+                let errorMessage = `Error loading component index: ${error.message}. `;
                 
                 if (error.name === 'AbortError') {
-                    errorMessage += 'Request timed out. The file is compressed (57MB, expands to ~570MB) and may take several minutes to load. ';
-                    if (dataSource.includes('r2.dev')) {
-                        errorMessage += 'R2 public development URL may need time to propagate (up to 24h for new accounts). Try again later or see R2_PROPAGATION.md.';
-                    } else {
-                        errorMessage += 'The CDN may be experiencing issues. Try again later.';
-                    }
+                    errorMessage += 'Request timed out. The index file is large and may take time to load. ';
                 } else if (error.message.includes('404') || error.message.includes('not found')) {
-                    if (dataSource.includes('r2.dev')) {
-                        errorMessage += 'File not found in R2 bucket. Verify the file is uploaded and the URL is correct.';
-                    } else {
-                        errorMessage += 'File not found. Make sure the file exists at the specified URL.';
-                    }
+                    errorMessage += 'Index file not found. Verify the file is uploaded to R2.';
                 } else if (error.message.includes('CORS') || error.message.includes('Failed to fetch')) {
-                    if (dataSource.includes('r2.dev')) {
-                        errorMessage += 'R2 connection error. The public development URL may still be propagating (can take up to 24h for new accounts). ';
-                        errorMessage += 'If this persists after 24h, consider using R2 custom domain or AWS S3 (see CDN_SETUP.md).';
-                    } else {
-                        errorMessage += 'Network or CORS error. Check your connection and try again.';
-                    }
+                    errorMessage += 'Network or CORS error. Check your connection and try again.';
+                } else if (error.message.includes('JSON') || error.message.includes('parse')) {
+                    errorMessage += 'The index file may be corrupted or incomplete. Try refreshing the page.';
                 } else {
-                    errorMessage += `Error: ${error.message}. `;
-                    if (dataSource.includes('r2.dev')) {
-                        errorMessage += 'R2 may need time to propagate. If this persists after 24h, see R2_PROPAGATION.md for alternatives.';
-                    } else {
-                        errorMessage += 'Try again later or check CDN_SETUP.md for alternative solutions.';
-                    }
+                    errorMessage += 'Try refreshing the page or check the browser console for details.';
                 }
                 
                 document.getElementById('loading').textContent = errorMessage;
@@ -1020,9 +1003,9 @@
         function setupUIControls() {
             // Data source selector (now just for display - we always use component-based loading)
             // Remove or hide the data source selector since we always use components
-            const dataSourceSelect = document.getElementById('data-source');
-            if (dataSourceSelect) {
-                dataSourceSelect.style.display = 'none'; // Hide since we always use component-based
+            const component indexSelect = document.getElementById('data-source');
+            if (component indexSelect) {
+                component indexSelect.style.display = 'none'; // Hide since we always use component-based
             }
             
             // Search functionality
