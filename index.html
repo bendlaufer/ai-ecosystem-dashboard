@@ -383,8 +383,8 @@
         let nodes = [];
         let edges = [];
         let nodeMap = new Map();
-        let fullGraphData = null;
-        let graphData = null;
+        let componentIndex = null;  // Component index: model_id -> component_id
+        let graphData = null;  // Currently loaded component data
         let selectedNode = null;
         let raycaster, mouse;
         let animationId;
@@ -446,97 +446,115 @@
             loadGraphData();
         }
         
-        // Load graph data based on selected source
-        async function loadGraphData() {
-            let dataSource = document.getElementById('data-source').value;
-            
-            // Replace CDN placeholder with actual CDN URL
-            if (dataSource === 'CDN_URL_PLACEHOLDER') {
-                dataSource = CDN_URL;
-            }
-            
+        // Load component index (small file, loads on page load)
+        async function loadComponentIndex() {
             try {
-                console.log(`Loading graph data from ${dataSource}...`);
-                document.getElementById('loading').textContent = 'Loading graph data... Full dataset is compressed (57MB, expands to ~570MB)...';
+                console.log('Loading component index...');
+                document.getElementById('loading').textContent = 'Loading component index...';
                 
-                // Add timeout and better error handling for large files
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 minute timeout
-                
-                // Fetch from CDN (R2 or other)
-                const response = await fetch(dataSource, {
+                const indexUrl = `${CDN_URL}/component_index.json.gz`;
+                const response = await fetch(indexUrl, {
                     method: 'GET',
                     mode: 'cors',
-                    cache: 'default',
-                    signal: controller.signal
+                    cache: 'default'
                 });
                 
-                clearTimeout(timeoutId);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                // Decompress gzip
+                const compressedData = await response.arrayBuffer();
+                const stream = new DecompressionStream('gzip');
+                const decompressedStream = new Response(compressedData).body.pipeThrough(stream);
+                const decompressedData = await new Response(decompressedStream).arrayBuffer();
+                const jsonText = new TextDecoder().decode(decompressedData);
+                
+                const indexData = JSON.parse(jsonText);
+                componentIndex = indexData.component_index;
+                
+                console.log('Component index loaded:', Object.keys(componentIndex).length, 'models mapped to', indexData.total_components, 'components');
+                
+                return indexData;
+            } catch (error) {
+                console.error('Error loading component index:', error);
+                document.getElementById('loading').textContent = `Error loading component index: ${error.message}`;
+                throw error;
+            }
+        }
+        
+        // Load a specific component by component_id
+        async function loadComponentById(componentId) {
+            try {
+                console.log(`Loading component ${componentId}...`);
+                document.getElementById('loading').textContent = `Loading component ${componentId}...`;
+                
+                const componentUrl = `${CDN_URL}/component_${componentId}.json.gz`;
+                const response = await fetch(componentUrl, {
+                    method: 'GET',
+                    mode: 'cors',
+                    cache: 'default'
+                });
                 
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
+                    throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 
-                // Get content type and length
-                const contentType = response.headers.get('content-type');
-                const contentLength = response.headers.get('content-length');
+                // Decompress gzip
+                const compressedData = await response.arrayBuffer();
+                const stream = new DecompressionStream('gzip');
+                const decompressedStream = new Response(compressedData).body.pipeThrough(stream);
+                const decompressedData = await new Response(decompressedStream).arrayBuffer();
+                const jsonText = new TextDecoder().decode(decompressedData);
                 
-                // Show progress for large files
-                if (contentLength) {
-                    const totalSize = parseInt(contentLength);
-                    console.log(`Compressed file size: ${(totalSize / 1024 / 1024).toFixed(2)} MB`);
-                    document.getElementById('loading').textContent = `Downloading ${(totalSize / 1024 / 1024).toFixed(2)} MB (compressed)...`;
-                }
+                const componentData = JSON.parse(jsonText);
                 
-                // Check if file is gzip-compressed
-                // Worker streams gzipped file, direct R2 URLs are also gzipped
-                const isGzipped = dataSource.endsWith('.gz') || 
-                                 contentType?.includes('gzip') ||
-                                 contentType?.includes('application/gzip');
+                console.log('Component loaded:', componentData.nodes.length, 'nodes,', componentData.edges.length, 'edges');
                 
-                let jsonText;
-                
-                if (isGzipped) {
-                    // Decompress gzip data using DecompressionStream API
-                    console.log('Decompressing gzip data...');
-                    document.getElementById('loading').textContent = 'Decompressing data...';
-                    
-                    const compressedData = await response.arrayBuffer();
-                    const stream = new DecompressionStream('gzip');
-                    const decompressedStream = new Response(compressedData).body.pipeThrough(stream);
-                    const decompressedData = await new Response(decompressedStream).arrayBuffer();
-                    
-                    jsonText = new TextDecoder().decode(decompressedData);
-                    console.log('Decompression complete');
-                } else {
-                    // Regular JSON
-                    jsonText = await response.text();
-                }
-                
-                fullGraphData = JSON.parse(jsonText);
-                
-                console.log('Graph loaded:', fullGraphData.nodes.length, 'nodes,', fullGraphData.edges.length, 'edges');
-                
-                document.getElementById('loading').style.display = 'none';
+                return componentData;
+            } catch (error) {
+                console.error(`Error loading component ${componentId}:`, error);
+                throw error;
+            }
+        }
+        
+        // Load component for a given model ID
+        async function loadComponentForModel(modelId) {
+            if (!componentIndex) {
+                // Load index first if not loaded
+                await loadComponentIndex();
+            }
+            
+            const componentId = componentIndex[modelId];
+            
+            if (componentId === undefined) {
+                throw new Error(`Model "${modelId}" not found in component index`);
+            }
+            
+            const componentData = await loadComponentById(componentId);
+            return componentData;
+        }
+        
+        // Initial load: Load index and auto-load default component
+        async function loadGraphData() {
+            try {
+                // Load component index
+                const indexData = await loadComponentIndex();
                 
                 // Auto-load the connected component for zera09/SmolVLM
                 const defaultModelId = 'zera09/SmolVLM';
                 console.log(`Auto-loading component for ${defaultModelId}...`);
-                document.getElementById('loading').style.display = 'block';
                 document.getElementById('loading').textContent = `Loading component for ${defaultModelId}...`;
                 
-                // Find and load the component
-                const component = findConnectedComponent(defaultModelId);
-                
-                if (component.nodes.length > 0) {
-                    graphData = component;
+                try {
+                    graphData = await loadComponentForModel(defaultModelId);
+                    
                     document.getElementById('component-info').textContent = 
-                        `Component: ${component.nodes.length} nodes, ${component.edges.length} edges (${defaultModelId})`;
+                        `Component: ${graphData.nodes.length} nodes, ${graphData.edges.length} edges (${defaultModelId})`;
                     createGraph();
                     document.getElementById('loading').style.display = 'none';
-                } else {
-                    // If model not found, show empty graph
-                    console.warn(`Model ${defaultModelId} not found in graph`);
+                } catch (error) {
+                    console.warn(`Model ${defaultModelId} not found:`, error);
                     document.getElementById('component-info').textContent = 
                         `Model ${defaultModelId} not found. Search for a model to load its component.`;
                     graphData = { nodes: [], edges: [], metadata: {} };
@@ -591,66 +609,7 @@
             }
         }
         
-        // Find weakly connected component containing a given node
-        function findConnectedComponent(nodeId) {
-            if (!fullGraphData || !fullGraphData.nodes || !fullGraphData.edges) {
-                return { nodes: [], edges: [] };
-            }
-            
-            const nodeMap = new Map();
-            fullGraphData.nodes.forEach(node => {
-                nodeMap.set(node.id, node);
-            });
-            
-            if (!nodeMap.has(nodeId)) {
-                return { nodes: [], edges: [] };
-            }
-            
-            // Build adjacency list
-            const adjList = new Map();
-            fullGraphData.edges.forEach(edge => {
-                if (!adjList.has(edge.source)) {
-                    adjList.set(edge.source, []);
-                }
-                if (!adjList.has(edge.target)) {
-                    adjList.set(edge.target, []);
-                }
-                adjList.get(edge.source).push(edge.target);
-                adjList.get(edge.target).push(edge.source);
-            });
-            
-            // BFS to find connected component
-            const visited = new Set();
-            const queue = [nodeId];
-            const componentNodes = new Set();
-            
-            while (queue.length > 0) {
-                const current = queue.shift();
-                if (visited.has(current)) continue;
-                
-                visited.add(current);
-                componentNodes.add(current);
-                
-                if (adjList.has(current)) {
-                    adjList.get(current).forEach(neighbor => {
-                        if (!visited.has(neighbor)) {
-                            queue.push(neighbor);
-                        }
-                    });
-                }
-            }
-            
-            // Get component nodes and edges
-            const componentNodeList = Array.from(componentNodes).map(id => nodeMap.get(id)).filter(Boolean);
-            const componentEdges = fullGraphData.edges.filter(edge => 
-                componentNodes.has(edge.source) && componentNodes.has(edge.target)
-            );
-            
-            return {
-                nodes: componentNodeList,
-                edges: componentEdges
-            };
-        }
+        // Note: findConnectedComponent removed - components are now loaded directly from R2
         
         // Create graph visualization
         function createGraph() {
@@ -918,12 +877,12 @@
         
         // Setup UI controls
         function setupUIControls() {
-            // Data source selector
-            document.getElementById('data-source').addEventListener('change', () => {
-                document.getElementById('loading').style.display = 'block';
-                document.getElementById('loading').textContent = 'Loading graph data...';
-                loadGraphData();
-            });
+            // Data source selector (now just for display - we always use component-based loading)
+            // Remove or hide the data source selector since we always use components
+            const dataSourceSelect = document.getElementById('data-source');
+            if (dataSourceSelect) {
+                dataSourceSelect.style.display = 'none'; // Hide since we always use component-based
+            }
             
             // Search functionality
             const searchInput = document.getElementById('search');
@@ -941,15 +900,20 @@
                 }
                 
                 searchTimeout = setTimeout(() => {
-                    if (!fullGraphData || !fullGraphData.nodes) return;
+                    if (!componentIndex) return;
                     
-                    const matches = fullGraphData.nodes
-                        .filter(node => {
-                            const name = (node.name || '').toLowerCase();
-                            const id = node.id.toLowerCase();
-                            return name.includes(query) || id.includes(query);
+                    // Search through component index keys (model IDs)
+                    const matches = Object.keys(componentIndex)
+                        .filter(modelId => {
+                            const id = modelId.toLowerCase();
+                            const name = modelId.split('/').pop().toLowerCase();
+                            return id.includes(query) || name.includes(query);
                         })
-                        .slice(0, 10);
+                        .slice(0, 10)
+                        .map(modelId => ({
+                            id: modelId,
+                            name: modelId.split('/').pop()
+                        }));
                     
                     if (matches.length > 0) {
                         autocompleteResults.innerHTML = matches.map(node => `
@@ -998,32 +962,33 @@
             });
         }
         
-        // Load component for a given node
-        function loadComponent(nodeId) {
-            if (!fullGraphData) {
-                alert('Graph data not loaded yet. Please wait...');
-                return;
+        // Load component for a given model ID (async, loads from R2)
+        async function loadComponent(nodeId) {
+            if (!componentIndex) {
+                // Load index first if not loaded
+                try {
+                    await loadComponentIndex();
+                } catch (error) {
+                    alert('Failed to load component index. Please refresh the page.');
+                    return;
+                }
             }
             
             document.getElementById('loading').style.display = 'block';
             document.getElementById('loading').textContent = `Loading component for ${nodeId}...`;
             
-            setTimeout(() => {
-                const component = findConnectedComponent(nodeId);
+            try {
+                graphData = await loadComponentForModel(nodeId);
                 
-                if (component.nodes.length === 0) {
-                    alert(`Model "${nodeId}" not found in the graph.`);
-                    document.getElementById('loading').style.display = 'none';
-                    return;
-                }
-                
-                graphData = component;
                 document.getElementById('component-info').textContent = 
-                    `Component: ${component.nodes.length} nodes, ${component.edges.length} edges`;
+                    `Component: ${graphData.nodes.length} nodes, ${graphData.edges.length} edges (${nodeId})`;
                 
                 createGraph();
                 document.getElementById('loading').style.display = 'none';
-            }, 100);
+            } catch (error) {
+                alert(`Model "${nodeId}" not found: ${error.message}`);
+                document.getElementById('loading').style.display = 'none';
+            }
         }
         
         // Update edge visibility based on filters
