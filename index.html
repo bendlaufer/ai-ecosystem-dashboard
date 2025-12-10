@@ -383,7 +383,8 @@
         let nodes = [];
         let edges = [];
         let nodeMap = new Map();
-        let componentIndex = null;  // Component index: model_id -> component_id
+        // No need to load search index - we use server-side search API
+        let componentIndexCache = new Map();  // Cache component_id lookups (model_id -> component_id)
         let graphData = null;  // Currently loaded component data
         let selectedNode = null;
         let raycaster, mouse;
@@ -446,14 +447,11 @@
             loadGraphData();
         }
         
-        // Load component index (small file, loads on page load)
-        async function loadComponentIndex() {
+        // Server-side search (no memory overhead in browser)
+        async function searchModels(query, limit = 10) {
             try {
-                console.log('Loading component index...');
-                document.getElementById('loading').textContent = 'Loading component index...';
-                
-                const indexUrl = `${CDN_URL}/component_index.json.gz`;
-                const response = await fetch(indexUrl, {
+                const searchUrl = `${CDN_URL}/search?q=${encodeURIComponent(query)}&limit=${limit}`;
+                const response = await fetch(searchUrl, {
                     method: 'GET',
                     mode: 'cors',
                     cache: 'default'
@@ -463,22 +461,42 @@
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 
-                // Decompress gzip
-                const compressedData = await response.arrayBuffer();
-                const stream = new DecompressionStream('gzip');
-                const decompressedStream = new Response(compressedData).body.pipeThrough(stream);
-                const decompressedData = await new Response(decompressedStream).arrayBuffer();
-                const jsonText = new TextDecoder().decode(decompressedData);
-                
-                const indexData = JSON.parse(jsonText);
-                componentIndex = indexData.component_index;
-                
-                console.log('Component index loaded:', Object.keys(componentIndex).length, 'models mapped to', indexData.total_components, 'components');
-                
-                return indexData;
+                const data = await response.json();
+                return data.matches || [];
             } catch (error) {
-                console.error('Error loading component index:', error);
-                document.getElementById('loading').textContent = `Error loading component index: ${error.message}`;
+                console.error('Error searching models:', error);
+                return [];
+            }
+        }
+        
+        // Look up component_id for a model (fetches on-demand, caches result)
+        async function lookupComponentId(modelId) {
+            // Check cache first
+            if (componentIndexCache.has(modelId)) {
+                return componentIndexCache.get(modelId);
+            }
+            
+            // Fetch component_id from Worker API
+            try {
+                const lookupUrl = `${CDN_URL}/lookup?model_id=${encodeURIComponent(modelId)}`;
+                const response = await fetch(lookupUrl, {
+                    method: 'GET',
+                    mode: 'cors'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                const componentId = data.component_id;
+                
+                // Cache the result
+                componentIndexCache.set(modelId, componentId);
+                
+                return componentId;
+            } catch (error) {
+                console.error(`Error looking up component_id for ${modelId}:`, error);
                 throw error;
             }
         }
@@ -520,26 +538,21 @@
         
         // Load component for a given model ID
         async function loadComponentForModel(modelId) {
-            if (!componentIndex) {
-                // Load index first if not loaded
-                await loadComponentIndex();
-            }
+            // Look up component_id on-demand (cached)
+            const componentId = await lookupComponentId(modelId);
             
-            const componentId = componentIndex[modelId];
-            
-            if (componentId === undefined) {
-                throw new Error(`Model "${modelId}" not found in component index`);
+            if (componentId === null || componentId === undefined) {
+                throw new Error(`Model "${modelId}" not found`);
             }
             
             const componentData = await loadComponentById(componentId);
             return componentData;
         }
         
-        // Initial load: Load index and auto-load default component
+        // Initial load: Auto-load default component (no index loading needed)
         async function loadGraphData() {
             try {
-                // Load component index
-                const indexData = await loadComponentIndex();
+                // No need to load any index - we use server-side search and lookup
                 
                 // Auto-load the connected component for zera09/SmolVLM
                 const defaultModelId = 'zera09/SmolVLM';
@@ -899,21 +912,9 @@
                     return;
                 }
                 
-                searchTimeout = setTimeout(() => {
-                    if (!componentIndex) return;
-                    
-                    // Search through component index keys (model IDs)
-                    const matches = Object.keys(componentIndex)
-                        .filter(modelId => {
-                            const id = modelId.toLowerCase();
-                            const name = modelId.split('/').pop().toLowerCase();
-                            return id.includes(query) || name.includes(query);
-                        })
-                        .slice(0, 10)
-                        .map(modelId => ({
-                            id: modelId,
-                            name: modelId.split('/').pop()
-                        }));
+                searchTimeout = setTimeout(async () => {
+                    // Use server-side search API (no memory overhead)
+                    const matches = await searchModels(query, 10);
                     
                     if (matches.length > 0) {
                         autocompleteResults.innerHTML = matches.map(node => `
@@ -964,15 +965,7 @@
         
         // Load component for a given model ID (async, loads from R2)
         async function loadComponent(nodeId) {
-            if (!componentIndex) {
-                // Load index first if not loaded
-                try {
-                    await loadComponentIndex();
-                } catch (error) {
-                    alert('Failed to load component index. Please refresh the page.');
-                    return;
-                }
-            }
+            // No index loading needed - we use server-side lookup
             
             document.getElementById('loading').style.display = 'block';
             document.getElementById('loading').textContent = `Loading component for ${nodeId}...`;

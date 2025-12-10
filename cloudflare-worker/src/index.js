@@ -14,12 +14,134 @@ export default {
 
     const url = new URL(request.url);
     const pathname = url.pathname;
+    const searchParams = url.searchParams;
+    
+    // Cache for component index (loaded once, reused)
+    let componentIndexCache = null;
+    
+    async function getComponentIndex() {
+      if (componentIndexCache) {
+        return componentIndexCache;
+      }
+      
+      const indexObject = await env.AI_ECOSYSTEM_GRAPH.get('components/component_index.json.gz');
+      if (!indexObject) {
+        throw new Error('Component index not found');
+      }
+      
+      // Decompress and parse index
+      const compressedData = await indexObject.arrayBuffer();
+      const stream = new DecompressionStream('gzip');
+      const decompressedStream = new Response(compressedData).body.pipeThrough(stream);
+      const decompressedData = await new Response(decompressedStream).arrayBuffer();
+      const jsonText = new TextDecoder().decode(decompressedData);
+      const indexData = JSON.parse(jsonText);
+      
+      componentIndexCache = indexData.component_index;
+      return componentIndexCache;
+    }
+    
+    // Handle search API: /search?q=query (returns matching model IDs)
+    if (pathname === '/search') {
+      const query = searchParams.get('q') || '';
+      const limit = parseInt(searchParams.get('limit') || '10');
+      
+      if (query.length < 2) {
+        return new Response(JSON.stringify({ matches: [] }), {
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
+        });
+      }
+      
+      try {
+        const index = await getComponentIndex();
+        const queryLower = query.toLowerCase();
+        
+        // Search through model IDs
+        const matches = [];
+        for (const modelId of Object.keys(index)) {
+          if (modelId.toLowerCase().includes(queryLower)) {
+            matches.push({
+              id: modelId,
+              name: modelId.split('/').pop()
+            });
+            if (matches.length >= limit) break;
+          }
+        }
+        
+        return new Response(JSON.stringify({ matches }), {
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Cache-Control': 'public, max-age=300',
+          },
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({ error: error.message, matches: [] }), {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
+        });
+      }
+    }
+    
+    // Handle lookup API: /lookup?model_id=xxx (returns component_id)
+    if (pathname === '/lookup') {
+      const modelId = searchParams.get('model_id');
+      if (!modelId) {
+        return new Response(JSON.stringify({ error: 'model_id parameter required' }), {
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
+        });
+      }
+      
+      try {
+        const index = await getComponentIndex();
+        const componentId = index[modelId];
+        
+        if (componentId === undefined) {
+          return new Response(JSON.stringify({ error: 'Model not found', component_id: null }), {
+            status: 404,
+            headers: {
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': '*',
+            },
+          });
+        }
+        
+        return new Response(JSON.stringify({ component_id: componentId }), {
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Cache-Control': 'public, max-age=3600',
+          },
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({ error: error.message }), {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
+        });
+      }
+    }
     
     // Determine which file to serve
     let r2Key;
     
-    if (pathname === '/' || pathname === '/component_index.json.gz' || pathname.includes('component_index')) {
-      // Serve component index
+    if (pathname === '/search_index.json.gz' || pathname.includes('search_index')) {
+      // Serve search index (lightweight, just model IDs)
+      r2Key = 'components/search_index.json.gz';
+    } else if (pathname === '/' || pathname === '/component_index.json.gz' || pathname.includes('component_index')) {
+      // Serve component index (full mapping - only load when needed)
       r2Key = 'components/component_index.json.gz';
     } else if (pathname.match(/\/component_\d+\.json\.gz$/)) {
       // Serve specific component (e.g., /component_0.json.gz)
