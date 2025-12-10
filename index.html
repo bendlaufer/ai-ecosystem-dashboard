@@ -464,7 +464,7 @@
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 minute timeout
                 
-                // Fetch with CORS (CORS proxy handles CORS for us)
+                // Fetch from CDN (R2 or other)
                 const response = await fetch(dataSource, {
                     method: 'GET',
                     mode: 'cors',
@@ -533,16 +533,32 @@
                 let errorMessage = `Error loading ${dataSource}. `;
                 
                 if (error.name === 'AbortError') {
-                    errorMessage += 'Request timed out. The file is very large (500MB) and may take several minutes to load. ';
-                    errorMessage += 'CORS proxies may not handle files this large. Consider using a proper CDN (see CDN_SETUP.md).';
+                    errorMessage += 'Request timed out. The file is compressed (57MB, expands to ~570MB) and may take several minutes to load. ';
+                    if (dataSource.includes('r2.dev')) {
+                        errorMessage += 'R2 public development URL may need time to propagate (up to 24h for new accounts). Try again later or see R2_PROPAGATION.md.';
+                    } else {
+                        errorMessage += 'The CDN may be experiencing issues. Try again later.';
+                    }
                 } else if (error.message.includes('404') || error.message.includes('not found')) {
-                    errorMessage += 'File not found. Make sure the GitHub Release v1.0 exists and contains graph_data.json.';
+                    if (dataSource.includes('r2.dev')) {
+                        errorMessage += 'File not found in R2 bucket. Verify the file is uploaded and the URL is correct.';
+                    } else {
+                        errorMessage += 'File not found. Make sure the file exists at the specified URL.';
+                    }
                 } else if (error.message.includes('CORS') || error.message.includes('Failed to fetch')) {
-                    errorMessage += 'CORS or network error. The CORS proxy may be having issues with the large file size. ';
-                    errorMessage += 'For 500MB files, consider using Cloudflare R2 or AWS S3 (see CDN_SETUP.md).';
+                    if (dataSource.includes('r2.dev')) {
+                        errorMessage += 'R2 connection error. The public development URL may still be propagating (can take up to 24h for new accounts). ';
+                        errorMessage += 'If this persists after 24h, consider using R2 custom domain or AWS S3 (see CDN_SETUP.md).';
+                    } else {
+                        errorMessage += 'Network or CORS error. Check your connection and try again.';
+                    }
                 } else {
                     errorMessage += `Error: ${error.message}. `;
-                    errorMessage += 'For the full dataset (500MB), CORS proxies may timeout. Consider using a proper CDN.';
+                    if (dataSource.includes('r2.dev')) {
+                        errorMessage += 'R2 may need time to propagate. If this persists after 24h, see R2_PROPAGATION.md for alternatives.';
+                    } else {
+                        errorMessage += 'Try again later or check CDN_SETUP.md for alternative solutions.';
+                    }
                 }
                 
                 document.getElementById('loading').textContent = errorMessage;
