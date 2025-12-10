@@ -258,7 +258,8 @@
                 <label for="data-source">Data Source:</label>
                 <select id="data-source">
                     <option value="graph_data_mini.json">Mini Sample (for testing)</option>
-                    <option value="graph_data.json">Full Dataset (500MB)</option>
+                    <option value="graph_data.json">Full Dataset - Local (500MB)</option>
+                    <option value="CDN_URL_PLACEHOLDER">Full Dataset - CDN (500MB) ⚡</option>
                 </select>
             </div>
             
@@ -334,6 +335,10 @@
             animationSpeed: 0.02
         };
         
+        // CDN Configuration - Update this with your GitHub Release URL after uploading
+        // Format: https://github.com/bendlaufer/ai-ecosystem-dashboard/releases/download/v1.0/graph_data.json
+        const CDN_URL = 'https://github.com/bendlaufer/ai-ecosystem-dashboard/releases/download/v1.0/graph_data.json';
+        
         // Global variables
         let scene, camera, renderer, controls;
         let nodeMeshes = [];
@@ -406,7 +411,13 @@
         
         // Load graph data based on selected source
         async function loadGraphData() {
-            const dataSource = document.getElementById('data-source').value;
+            let dataSource = document.getElementById('data-source').value;
+            
+            // Replace CDN placeholder with actual CDN URL
+            if (dataSource === 'CDN_URL_PLACEHOLDER') {
+                dataSource = CDN_URL;
+            }
+            
             try {
                 console.log(`Loading graph data from ${dataSource}...`);
                 const response = await fetch(dataSource);
