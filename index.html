@@ -363,9 +363,15 @@
         // CDN Configuration for Full Dataset
         // Using gzip-compressed version (56MB instead of 569MB) - much faster!
         
-        // CDN Configuration - Cloudflare R2 (RECOMMENDED)
+        // CDN Configuration - Cloudflare R2
         // Public development URL - file is at root, not in bucket-name subfolder
+        // Note: R2 public URLs may need 24h to fully provision for new accounts
         const CDN_URL = 'https://pub-89cf9135be2346638e77c9edf35edf5a.r2.dev/graph_data.json.gz';
+        
+        // Fallback: GitHub Releases (if R2 not ready yet)
+        // Uncomment below if R2 is still timing out after 24h
+        // const GITHUB_RELEASE_URL = 'https://github.com/bendlaufer/ai-ecosystem-dashboard/releases/download/v1.0/graph_data.json.gz';
+        // const CDN_URL = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(GITHUB_RELEASE_URL);
         
         // Alternative: GitHub Releases via CORS proxy (may timeout on 57MB files)
         // const GITHUB_RELEASE_URL = 'https://github.com/bendlaufer/ai-ecosystem-dashboard/releases/download/v1.0/graph_data.json.gz';
