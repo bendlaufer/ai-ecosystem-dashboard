@@ -489,9 +489,11 @@
                 }
                 
                 // Check if file is gzip-compressed
-                const isGzipped = dataSource.endsWith('.gz') || 
+                // Worker returns plain JSON, direct R2 URLs are gzipped
+                const isWorker = dataSource.includes('workers.dev');
+                const isGzipped = !isWorker && (dataSource.endsWith('.gz') || 
                                  contentType?.includes('gzip') ||
-                                 contentType?.includes('application/gzip');
+                                 contentType?.includes('application/gzip'));
                 
                 let jsonText;
                 
@@ -508,7 +510,7 @@
                     jsonText = new TextDecoder().decode(decompressedData);
                     console.log('Decompression complete');
                 } else {
-                    // Regular JSON
+                    // Regular JSON (Worker returns plain JSON)
                     jsonText = await response.text();
                 }
                 
