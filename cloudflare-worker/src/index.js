@@ -153,14 +153,17 @@ export default {
     // Determine which file to serve
     let r2Key;
     
-    if (pathname === '/model_lookup.json.gz' || pathname.includes('model_lookup')) {
+    if (pathname === '/compact_index.json.gz' || pathname.includes('compact_index')) {
+      // Serve compact index (array format, most efficient)
+      r2Key = 'components/compact_index.json.gz';
+    } else if (pathname === '/model_lookup.json.gz' || pathname.includes('model_lookup')) {
       // Serve compact model lookup file
       r2Key = 'components/model_lookup.json.gz';
     } else if (pathname === '/search_index.json.gz' || pathname.includes('search_index')) {
       // Serve search index (lightweight, just model IDs)
       r2Key = 'components/search_index.json.gz';
     } else if (pathname === '/' || pathname === '/component_index.json.gz' || pathname.includes('component_index')) {
-      // Serve component index (full mapping - only load when needed)
+      // Serve component index (full mapping - fallback)
       r2Key = 'components/component_index.json.gz';
     } else if (pathname.match(/\/component_\d+\.json\.gz$/)) {
       // Serve specific component (e.g., /component_0.json.gz)
