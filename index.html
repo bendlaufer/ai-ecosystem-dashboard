@@ -441,13 +441,37 @@
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 minute timeout
                 
-                // Add mode: 'cors' to handle CORS issues
-                const response = await fetch(dataSource, {
-                    method: 'GET',
-                    mode: 'cors',
-                    cache: 'default',
-                    signal: controller.signal
-                });
+                // Try with 'no-cors' first for GitHub Releases (may work despite CORS)
+                // If that fails, we'll try 'cors' mode
+                let response;
+                try {
+                    response = await fetch(dataSource, {
+                        method: 'GET',
+                        mode: 'no-cors', // Try no-cors first for GitHub Releases
+                        cache: 'default',
+                        signal: controller.signal
+                    });
+                    
+                    // If no-cors doesn't give us readable data, try cors
+                    if (!response.ok && dataSource.includes('github.com')) {
+                        console.log('Trying with CORS mode...');
+                        response = await fetch(dataSource, {
+                            method: 'GET',
+                            mode: 'cors',
+                            cache: 'default',
+                            signal: controller.signal
+                        });
+                    }
+                } catch (corsError) {
+                    // If no-cors fails, try with cors mode
+                    console.log('No-cors failed, trying CORS mode...', corsError);
+                    response = await fetch(dataSource, {
+                        method: 'GET',
+                        mode: 'cors',
+                        cache: 'default',
+                        signal: controller.signal
+                    });
+                }
                 
                 clearTimeout(timeoutId);
                 
