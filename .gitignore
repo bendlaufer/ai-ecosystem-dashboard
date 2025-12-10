@@ -42,9 +42,10 @@ venv.bak/
 *~
 .DS_Store
 
-# Data files (uncomment if you don't want to track large data files)
-# data/*.pkl
-# *.pkl
+# Data files - large files excluded from git
+data/*.pkl
+*.pkl
+graph_data.json
 
 # Environment variables
 .env
