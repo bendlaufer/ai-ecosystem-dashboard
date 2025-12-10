@@ -383,8 +383,123 @@
         let nodes = [];
         let edges = [];
         let nodeMap = new Map();
-        // No need to load search index - we use server-side search API
-        let componentIndexCache = new Map();  // Cache component_id lookups (model_id -> component_id)
+        // Store component index in IndexedDB (not in main memory)
+        let componentIndexDB = null;
+        
+        // Initialize IndexedDB for component index storage
+        async function initIndexedDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open('ComponentIndexDB', 1);
+                
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => {
+                    componentIndexDB = request.result;
+                    resolve(componentIndexDB);
+                };
+                
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains('index')) {
+                        db.createObjectStore('index', { keyPath: 'modelId' });
+                    }
+                };
+            });
+        }
+        
+        // Load component index into IndexedDB (not main memory)
+        async function loadComponentIndexToDB() {
+            try {
+                // Check if already in IndexedDB
+                const db = await initIndexedDB();
+                const transaction = db.transaction(['index'], 'readonly');
+                const store = transaction.objectStore('index');
+                const countRequest = store.count();
+                
+                const count = await new Promise((resolve, reject) => {
+                    countRequest.onsuccess = () => resolve(countRequest.result);
+                    countRequest.onerror = () => reject(countRequest.error);
+                });
+                
+                if (count > 0) {
+                    console.log('Component index already in IndexedDB');
+                    return;
+                }
+                
+                console.log('Loading component index into IndexedDB...');
+                document.getElementById('loading').textContent = 'Loading component index (one-time setup)...';
+                
+                // Load index file
+                const indexUrl = `${CDN_URL}/model_lookup.json.gz`;
+                const response = await fetch(indexUrl, {
+                    method: 'GET',
+                    mode: 'cors',
+                    cache: 'default'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                // Decompress
+                const compressedData = await response.arrayBuffer();
+                const stream = new DecompressionStream('gzip');
+                const decompressedStream = new Response(compressedData).body.pipeThrough(stream);
+                const decompressedData = await new Response(decompressedStream).arrayBuffer();
+                const jsonText = new TextDecoder().decode(decompressedData);
+                const indexData = JSON.parse(jsonText);
+                
+                const index = indexData.index || indexData.component_index;
+                
+                // Store in IndexedDB in batches (to avoid blocking)
+                const writeTransaction = db.transaction(['index'], 'readwrite');
+                const writeStore = writeTransaction.objectStore('index');
+                
+                const entries = Object.entries(index);
+                const batchSize = 10000;
+                let processed = 0;
+                
+                for (let i = 0; i < entries.length; i += batchSize) {
+                    const batch = entries.slice(i, i + batchSize);
+                    for (const [modelId, componentId] of batch) {
+                        writeStore.put({ modelId, componentId });
+                    }
+                    processed += batch.length;
+                    if (i % 50000 === 0) {
+                        console.log(`Stored ${processed}/${entries.length} entries...`);
+                        document.getElementById('loading').textContent = 
+                            `Loading index: ${((processed/entries.length)*100).toFixed(1)}%`;
+                        // Yield to browser
+                        await new Promise(resolve => setTimeout(resolve, 10));
+                    }
+                }
+                
+                await new Promise((resolve, reject) => {
+                    writeTransaction.oncomplete = () => resolve();
+                    writeTransaction.onerror = () => reject(writeTransaction.error);
+                });
+                
+                console.log('Component index loaded into IndexedDB');
+            } catch (error) {
+                console.error('Error loading component index:', error);
+                throw error;
+            }
+        }
+        
+        // Look up component_id from IndexedDB (not main memory)
+        async function lookupComponentIdFromDB(modelId) {
+            const db = await initIndexedDB();
+            const transaction = db.transaction(['index'], 'readonly');
+            const store = transaction.objectStore('index');
+            const request = store.get(modelId);
+            
+            return new Promise((resolve, reject) => {
+                request.onsuccess = () => {
+                    const result = request.result;
+                    resolve(result ? result.componentId : null);
+                };
+                request.onerror = () => reject(request.error);
+            });
+        }
         let graphData = null;  // Currently loaded component data
         let selectedNode = null;
         let raycaster, mouse;
@@ -447,58 +562,46 @@
             loadGraphData();
         }
         
-        // Server-side search (no memory overhead in browser)
+        // Search models using IndexedDB (efficient, no main memory)
         async function searchModels(query, limit = 10) {
             try {
-                const searchUrl = `${CDN_URL}/search?q=${encodeURIComponent(query)}&limit=${limit}`;
-                const response = await fetch(searchUrl, {
-                    method: 'GET',
-                    mode: 'cors',
-                    cache: 'default'
+                const db = await initIndexedDB();
+                const transaction = db.transaction(['index'], 'readonly');
+                const store = transaction.objectStore('index');
+                const request = store.openCursor();
+                
+                const queryLower = query.toLowerCase();
+                const matches = [];
+                
+                return new Promise((resolve, reject) => {
+                    request.onsuccess = (event) => {
+                        const cursor = event.target.result;
+                        if (!cursor || matches.length >= limit) {
+                            resolve(matches);
+                            return;
+                        }
+                        
+                        const modelId = cursor.key;
+                        if (modelId.toLowerCase().includes(queryLower)) {
+                            matches.push({
+                                id: modelId,
+                                name: modelId.split('/').pop()
+                            });
+                        }
+                        
+                        cursor.continue();
+                    };
+                    request.onerror = () => reject(request.error);
                 });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const data = await response.json();
-                return data.matches || [];
             } catch (error) {
                 console.error('Error searching models:', error);
                 return [];
             }
         }
         
-        // Look up component_id for a model (fetches on-demand, caches result)
+        // Look up component_id for a model (from IndexedDB, not main memory)
         async function lookupComponentId(modelId) {
-            // Check cache first
-            if (componentIndexCache.has(modelId)) {
-                return componentIndexCache.get(modelId);
-            }
-            
-            // Fetch component_id from Worker API
-            try {
-                const lookupUrl = `${CDN_URL}/lookup?model_id=${encodeURIComponent(modelId)}`;
-                const response = await fetch(lookupUrl, {
-                    method: 'GET',
-                    mode: 'cors'
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const data = await response.json();
-                const componentId = data.component_id;
-                
-                // Cache the result
-                componentIndexCache.set(modelId, componentId);
-                
-                return componentId;
-            } catch (error) {
-                console.error(`Error looking up component_id for ${modelId}:`, error);
-                throw error;
-            }
+            return await lookupComponentIdFromDB(modelId);
         }
         
         // Load a specific component by component_id
@@ -549,10 +652,11 @@
             return componentData;
         }
         
-        // Initial load: Auto-load default component (no index loading needed)
+        // Initial load: Load index to IndexedDB, then auto-load default component
         async function loadGraphData() {
             try {
-                // No need to load any index - we use server-side search and lookup
+                // Load component index into IndexedDB (one-time, stored on disk, not in memory)
+                await loadComponentIndexToDB();
                 
                 // Auto-load the connected component for zera09/SmolVLM
                 const defaultModelId = 'zera09/SmolVLM';

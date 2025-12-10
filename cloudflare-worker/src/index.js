@@ -16,17 +16,23 @@ export default {
     const pathname = url.pathname;
     const searchParams = url.searchParams;
     
-    // Cache for component index (loaded once, reused)
-    let componentIndexCache = null;
-    
-    async function getComponentIndex() {
-      if (componentIndexCache) {
-        return componentIndexCache;
+    // Use Worker's Cache API for component index (persists across requests)
+    async function getComponentIndex(cache) {
+      // Try cache first
+      const cacheKey = 'https://cache/component_index';
+      const cached = await cache.match(cacheKey);
+      if (cached) {
+        const cachedData = await cached.json();
+        return cachedData.index;
       }
       
-      const indexObject = await env.AI_ECOSYSTEM_GRAPH.get('components/component_index.json.gz');
+      // Load from R2 (try compact lookup first, fallback to full index)
+      let indexObject = await env.AI_ECOSYSTEM_GRAPH.get('components/model_lookup.json.gz');
       if (!indexObject) {
-        throw new Error('Component index not found');
+        indexObject = await env.AI_ECOSYSTEM_GRAPH.get('components/component_index.json.gz');
+        if (!indexObject) {
+          throw new Error('Component index not found');
+        }
       }
       
       // Decompress and parse index
@@ -37,8 +43,16 @@ export default {
       const jsonText = new TextDecoder().decode(decompressedData);
       const indexData = JSON.parse(jsonText);
       
-      componentIndexCache = indexData.component_index;
-      return componentIndexCache;
+      // Extract index (handle both formats)
+      const index = indexData.index || indexData.component_index;
+      
+      // Cache for 1 hour
+      const cacheResponse = new Response(JSON.stringify({ index }), {
+        headers: { 'Cache-Control': 'public, max-age=3600' }
+      });
+      await cache.put(cacheKey, cacheResponse);
+      
+      return index;
     }
     
     // Handle search API: /search?q=query (returns matching model IDs)
@@ -56,7 +70,8 @@ export default {
       }
       
       try {
-        const index = await getComponentIndex();
+        const cache = caches.default;
+        const index = await getComponentIndex(cache);
         const queryLower = query.toLowerCase();
         
         // Search through model IDs
@@ -103,7 +118,8 @@ export default {
       }
       
       try {
-        const index = await getComponentIndex();
+        const cache = caches.default;
+        const index = await getComponentIndex(cache);
         const componentId = index[modelId];
         
         if (componentId === undefined) {
