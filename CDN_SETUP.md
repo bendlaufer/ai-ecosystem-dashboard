@@ -50,17 +50,50 @@ gh release create v1.0 \
   graph_data.json
 ```
 
+## ⚠️ Important: CORS Issue with GitHub Releases
+
+**The Problem**: When you access a GitHub Releases file directly in a browser, it downloads the file instead of displaying it. More importantly, GitHub Releases may not include CORS (Cross-Origin Resource Sharing) headers, which means `fetch()` requests from your website may fail with CORS errors.
+
+**The Solution**: You have several options:
+
+### Option 1: Use a CORS Proxy (Quick Fix)
+
+Use a free CORS proxy service to access the GitHub Releases file:
+
+1. Update `index.html` (around line 340):
+   ```javascript
+   // Use CORS proxy
+   const CDN_URL = 'https://api.allorigins.win/raw?url=' + 
+       encodeURIComponent('https://github.com/bendlaufer/ai-ecosystem-dashboard/releases/download/v1.0/graph_data.json');
+   ```
+
+**Pros**: Quick, free, no setup  
+**Cons**: Third-party dependency, may have rate limits, slower
+
+### Option 2: Use a Proper CDN (Recommended for Production)
+
+Host the file on a CDN that supports CORS:
+
+- **Cloudflare R2** (Recommended - free tier available)
+- **AWS S3 + CloudFront**
+- **Google Cloud Storage**
+- **Vercel Blob Storage**
+
+See "Alternative CDN Options" section below for details.
+
+### Option 3: Test GitHub Releases First
+
+Try the direct GitHub Releases URL first. If it works, great! If you get CORS errors in the browser console, use Option 1 or 2.
+
 ## Step 2: Update index.html with CDN URL
 
 After creating the release, update the CDN URL in `index.html`:
 
 1. Open `index.html`
-2. Find this line (around line 340):
-   ```javascript
-   const CDN_URL = 'https://github.com/bendlaufer/ai-ecosystem-dashboard/releases/download/v1.0/graph_data.json';
-   ```
-3. Replace `v1.0` with your actual release tag version if different
-4. Save the file
+2. Find the `CDN_URL` constant (around line 340)
+3. Choose one of the options above
+4. Update the URL with your release tag version
+5. Save the file
 
 ## Step 3: Test the CDN URL
 
@@ -83,29 +116,69 @@ git commit -m "Add CDN support for full dataset"
 git push
 ```
 
-## Alternative CDN Options
+## Alternative CDN Options (Recommended for Production)
 
-If GitHub Releases doesn't work for you, here are other options:
+For production use, consider these CDN options that properly support CORS:
+
+### Cloudflare R2 (Recommended)
+
+1. **Sign up**: https://dash.cloudflare.com (free tier: 10GB storage, 1M requests/month)
+2. **Create a bucket**: R2 → Create bucket
+3. **Upload file**: Upload `graph_data.json` to the bucket
+4. **Enable public access**: 
+   - Go to bucket settings
+   - Enable "Public Access"
+   - Copy the public URL
+5. **Update CDN_URL in index.html**:
+   ```javascript
+   const CDN_URL = 'https://your-bucket.r2.dev/graph_data.json';
+   ```
+
+**Pros**: Free tier, fast, proper CORS support, no file size limits  
+**Cons**: Requires Cloudflare account
 
 ### AWS S3 + CloudFront
-- Upload to S3 bucket
-- Enable public access
-- Use S3 URL or CloudFront distribution URL
 
-### Cloudflare R2
-- Similar to S3
-- Free tier available
-- Good performance
+1. **Create S3 bucket**: AWS Console → S3 → Create bucket
+2. **Upload file**: Upload `graph_data.json`
+3. **Enable public access**: Bucket permissions → Public access
+4. **Set CORS**: Bucket permissions → CORS configuration:
+   ```json
+   [
+     {
+       "AllowedHeaders": ["*"],
+       "AllowedMethods": ["GET"],
+       "AllowedOrigins": ["*"],
+       "ExposeHeaders": []
+     }
+   ]
+   ```
+5. **Use S3 URL or CloudFront**:
+   ```javascript
+   const CDN_URL = 'https://your-bucket.s3.amazonaws.com/graph_data.json';
+   ```
+
+**Pros**: Reliable, scalable  
+**Cons**: Costs money (though minimal for static hosting)
 
 ### Google Cloud Storage
-- Upload to GCS bucket
-- Make it publicly accessible
-- Use the public URL
 
-### jsDelivr (for GitHub Releases)
+1. **Create bucket**: GCS Console → Create bucket
+2. **Upload file**: Upload `graph_data.json`
+3. **Make public**: Bucket permissions → Add public access
+4. **Use public URL**:
+   ```javascript
+   const CDN_URL = 'https://storage.googleapis.com/your-bucket/graph_data.json';
+   ```
+
+**Pros**: Reliable, good performance  
+**Cons**: Costs money
+
+### jsDelivr (Not Recommended - Size Limit)
+
 - GitHub Releases files can be accessed via jsDelivr:
 - `https://cdn.jsdelivr.net/gh/bendlaufer/ai-ecosystem-dashboard@v1.0/graph_data.json`
-- (Note: jsDelivr has a 50MB limit, so this won't work for 500MB files)
+- **Note**: jsDelivr has a 50MB limit, so this **won't work** for 500MB files
 
 ## Troubleshooting
 

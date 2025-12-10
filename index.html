@@ -337,7 +337,20 @@
         
         // CDN Configuration - Update this with your GitHub Release URL after uploading
         // Format: https://github.com/bendlaufer/ai-ecosystem-dashboard/releases/download/v1.0/graph_data.json
+        // 
+        // IMPORTANT: GitHub Releases may not have CORS headers. Options:
+        // 1. Use a CORS proxy (see CDN_SETUP.md for details)
+        // 2. Use a proper CDN like Cloudflare R2, AWS S3, etc.
+        // 3. For testing: Use a CORS proxy service like allorigins.win
+        //
+        // Example with CORS proxy:
+        // const CDN_URL = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://github.com/bendlaufer/ai-ecosystem-dashboard/releases/download/v1.0/graph_data.json');
+        //
+        // Direct GitHub Releases URL (may have CORS issues):
         const CDN_URL = 'https://github.com/bendlaufer/ai-ecosystem-dashboard/releases/download/v1.0/graph_data.json';
+        
+        // Alternative: Use a CORS proxy (uncomment to use)
+        // const CDN_URL = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://github.com/bendlaufer/ai-ecosystem-dashboard/releases/download/v1.0/graph_data.json');
         
         // Global variables
         let scene, camera, renderer, controls;
@@ -420,10 +433,24 @@
             
             try {
                 console.log(`Loading graph data from ${dataSource}...`);
-                const response = await fetch(dataSource);
+                
+                // Add mode: 'cors' to handle CORS issues
+                const response = await fetch(dataSource, {
+                    method: 'GET',
+                    mode: 'cors',
+                    cache: 'default'
+                });
+                
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
+                
+                // Check if response is actually JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    console.warn('Response may not be JSON. Content-Type:', contentType);
+                }
+                
                 fullGraphData = await response.json();
                 
                 console.log('Graph loaded:', fullGraphData.nodes.length, 'nodes,', fullGraphData.edges.length, 'edges');
