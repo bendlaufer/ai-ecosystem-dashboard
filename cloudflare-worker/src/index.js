@@ -12,17 +12,34 @@ export default {
       });
     }
 
+    const url = new URL(request.url);
+    const pathname = url.pathname;
+    
+    // Determine which file to serve
+    let r2Key;
+    
+    if (pathname === '/' || pathname === '/component_index.json.gz' || pathname.includes('component_index')) {
+      // Serve component index
+      r2Key = 'components/component_index.json.gz';
+    } else if (pathname.match(/\/component_\d+\.json\.gz$/)) {
+      // Serve specific component (e.g., /component_0.json.gz)
+      const filename = pathname.split('/').pop();
+      r2Key = `components/${filename}`;
+    } else {
+      // Fallback: serve full graph (legacy support)
+      r2Key = 'graph_data.json.gz';
+    }
+
     // Fetch from R2 bucket
-    const object = await env.AI_ECOSYSTEM_GRAPH.get('graph_data.json.gz');
+    const object = await env.AI_ECOSYSTEM_GRAPH.get(r2Key);
     
     if (!object) {
-      return new Response('File not found', { status: 404 });
+      return new Response(`File not found: ${r2Key}`, { status: 404 });
     }
 
     // Stream the gzipped file directly (don't decompress - let browser handle it)
-    // This avoids Worker timeout/memory issues with large files
     const body = object.body;
-    const size = object.size; // Get file size from R2 object
+    const size = object.size;
 
     // Build headers
     const headers = {
@@ -32,14 +49,13 @@ export default {
       'Cache-Control': 'public, max-age=3600',
     };
     
-    // Add Content-Length if available (helps with streaming)
+    // Add Content-Length if available
     if (size) {
       headers['Content-Length'] = size.toString();
     }
 
     // Return gzipped file with CORS headers
     // Browser will decompress using DecompressionStream API
-    // Don't set Content-Encoding: gzip - let browser handle decompression manually
     return new Response(body, { headers });
   },
 };
