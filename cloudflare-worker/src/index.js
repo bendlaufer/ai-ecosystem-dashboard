@@ -153,7 +153,10 @@ export default {
     // Determine which file to serve
     let r2Key;
     
-    if (pathname === '/search_index.json.gz' || pathname.includes('search_index')) {
+    if (pathname === '/model_lookup.json.gz' || pathname.includes('model_lookup')) {
+      // Serve compact model lookup file
+      r2Key = 'components/model_lookup.json.gz';
+    } else if (pathname === '/search_index.json.gz' || pathname.includes('search_index')) {
       // Serve search index (lightweight, just model IDs)
       r2Key = 'components/search_index.json.gz';
     } else if (pathname === '/' || pathname === '/component_index.json.gz' || pathname.includes('component_index')) {

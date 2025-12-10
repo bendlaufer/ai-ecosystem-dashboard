@@ -428,16 +428,27 @@
                 console.log('Loading component index into IndexedDB...');
                 document.getElementById('loading').textContent = 'Loading component index (one-time setup)...';
                 
-                // Load index file
-                const indexUrl = `${CDN_URL}/model_lookup.json.gz`;
-                const response = await fetch(indexUrl, {
+                // Load index file (try model_lookup first, fallback to component_index)
+                let indexUrl = `${CDN_URL}/model_lookup.json.gz`;
+                let response = await fetch(indexUrl, {
                     method: 'GET',
                     mode: 'cors',
                     cache: 'default'
                 });
                 
+                // Fallback to component_index if model_lookup doesn't exist
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    console.log('model_lookup.json.gz not found, trying component_index.json.gz...');
+                    indexUrl = `${CDN_URL}/component_index.json.gz`;
+                    response = await fetch(indexUrl, {
+                        method: 'GET',
+                        mode: 'cors',
+                        cache: 'default'
+                    });
+                }
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status} - Could not load component index`);
                 }
                 
                 // Decompress
@@ -446,7 +457,20 @@
                 const decompressedStream = new Response(compressedData).body.pipeThrough(stream);
                 const decompressedData = await new Response(decompressedStream).arrayBuffer();
                 const jsonText = new TextDecoder().decode(decompressedData);
-                const indexData = JSON.parse(jsonText);
+                
+                // Validate JSON before parsing
+                if (!jsonText || jsonText.trim().length === 0) {
+                    throw new Error('Empty response from server');
+                }
+                
+                let indexData;
+                try {
+                    indexData = JSON.parse(jsonText);
+                } catch (parseError) {
+                    console.error('JSON parse error. Response length:', jsonText.length);
+                    console.error('First 500 chars:', jsonText.substring(0, 500));
+                    throw new Error(`Invalid JSON: ${parseError.message}`);
+                }
                 
                 const index = indexData.index || indexData.component_index;
                 
