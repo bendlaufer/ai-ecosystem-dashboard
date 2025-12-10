@@ -47,6 +47,9 @@ data/*.pkl
 *.pkl
 graph_data.json
 
+# Mini sample is included (small enough for git)
+!graph_data_mini.json
+
 # Environment variables
 .env
 .env.local

@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Ecosystem 3D Network Visualization</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        #container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+        }
+        
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 350px;
+            z-index: 100;
+        }
+        
+        #controls h2 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 18px;
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+            font-size: 14px;
+        }
+        
+        input[type="text"],
+        input[type="range"],
+        select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        input[type="range"] {
+            padding: 0;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .checkbox-item input[type="checkbox"] {
+            width: auto;
+        }
+        
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            width: 100%;
+            margin-top: 10px;
+            transition: background 0.3s;
+        }
+        
+        button:hover {
+            background: #5568d3;
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px 40px;
+            border-radius: 10px;
+            font-size: 16px;
+            z-index: 1000;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        #info-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 300px;
+            display: none;
+            z-index: 100;
+        }
+        
+        #info-panel h3 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        #info-panel p {
+            font-size: 12px;
+            color: #666;
+            line-height: 1.6;
+        }
+        
+        #stats {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            font-size: 12px;
+            z-index: 100;
+        }
+        
+        #stats div {
+            margin-bottom: 5px;
+        }
+        
+        .edge-type-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        
+        .autocomplete-container {
+            position: relative;
+        }
+        
+        #autocomplete-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #ddd;
+            border-top: none;
+            border-radius: 0 0 5px 5px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 200;
+            display: none;
+        }
+        
+        .autocomplete-item {
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .autocomplete-item:hover {
+            background: #f5f5f5;
+        }
+        
+        .autocomplete-item:last-child {
+            border-bottom: none;
+        }
+        
+        .autocomplete-item .model-id {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .autocomplete-item .model-name {
+            color: #666;
+            font-size: 12px;
+            margin-top: 2px;
+        }
+        
+        .autocomplete-item .highlight {
+            background: #fff3cd;
+            font-weight: 600;
+        }
+        
+        .data-source-selector {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        
+        .data-source-selector label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+            font-size: 14px;
+        }
+        
+        .data-source-selector select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="canvas-container"></div>
+        <div class="loading" id="loading">Loading graph data...</div>
+        
+        <div id="controls">
+            <h2>AI Ecosystem Dashboard</h2>
+            <p style="font-size: 12px; color: #666; margin-bottom: 15px;">
+                Explore the AI model ecosystem network in 3D
+            </p>
+            
+            <div class="data-source-selector">
+                <label for="data-source">Data Source:</label>
+                <select id="data-source">
+                    <option value="graph_data_mini.json">Mini Sample (for testing)</option>
+                    <option value="graph_data.json">Full Dataset (500MB)</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label for="search">Search Model ID:</label>
+                <div class="autocomplete-container">
+                    <input type="text" id="search" placeholder="Type to search... (e.g., zera09/SmolVLM)">
+                    <div id="autocomplete-results"></div>
+                </div>
+                <button id="search-btn" style="margin-top: 5px;">Search & Load Component</button>
+            </div>
+            
+            <div class="control-group">
+                <label>Current Component:</label>
+                <p id="component-info" style="font-size: 12px; color: #666; margin-top: 5px;">
+                    Search for a model ID to load its connected component
+                </p>
+            </div>
+            
+            <div class="control-group">
+                <label>Edge Types:</label>
+                <div class="checkbox-group">
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="filter-finetune" checked>
+                        <span class="edge-type-color" style="background: #ff6b6b;"></span>
+                        <label for="filter-finetune">Finetune</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="filter-quantized" checked>
+                        <span class="edge-type-color" style="background: #4ecdc4;"></span>
+                        <label for="filter-quantized">Quantized</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="filter-adapter" checked>
+                        <span class="edge-type-color" style="background: #45b7d1;"></span>
+                        <label for="filter-adapter">Adapter</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="filter-unknown" checked>
+                        <span class="edge-type-color" style="background: #96ceb4;"></span>
+                        <label for="filter-unknown">Other</label>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <label for="edge-opacity">Edge Opacity: <span id="edge-opacity-value">0.3</span></label>
+                <input type="range" id="edge-opacity" min="0" max="1" step="0.1" value="0.3">
+            </div>
+        </div>
+        
+        <div id="info-panel">
+            <h3 id="node-name"></h3>
+            <p id="node-details"></p>
+        </div>
+        
+        <div id="stats">
+            <div><strong>Nodes:</strong> <span id="node-count">0</span></div>
+            <div><strong>Edges:</strong> <span id="edge-count">0</span></div>
+            <div><strong>Selected:</strong> <span id="selected-count">0</span></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <script>
+        // Configuration
+        const CONFIG = {
+            nodeBaseSize: 0.5,
+            edgeOpacity: 0.3,
+            cameraDistance: 50,
+            animationSpeed: 0.02
+        };
+        
+        // Global variables
+        let scene, camera, renderer, controls;
+        let nodeMeshes = [];
+        let edgeLines = [];
+        let nodes = [];
+        let edges = [];
+        let nodeMap = new Map();
+        let fullGraphData = null;
+        let graphData = null;
+        let selectedNode = null;
+        let raycaster, mouse;
+        let animationId;
+        
+        // Edge type colors
+        const EDGE_COLORS = {
+            'finetune': 0xff6b6b,
+            'quantized': 0x4ecdc4,
+            'adapter': 0x45b7d1,
+            'unknown': 0x96ceb4,
+            'default': 0xcccccc
+        };
+        
+        // Initialize
+        function init() {
+            // Create scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a2e);
+            
+            // Create camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0, CONFIG.cameraDistance);
+            
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+            
+            // Add lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 10, 10);
+            scene.add(directionalLight);
+            
+            // Add controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.minDistance = 5;
+            controls.maxDistance = 200;
+            
+            // Raycaster for mouse interaction
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+            
+            // Handle window resize
+            window.addEventListener('resize', onWindowResize);
+            
+            // Handle mouse clicks
+            renderer.domElement.addEventListener('click', onMouseClick);
+            
+            // UI controls
+            setupUIControls();
+            
+            // Load initial data
+            loadGraphData();
+        }
+        
+        // Load graph data based on selected source
+        async function loadGraphData() {
+            const dataSource = document.getElementById('data-source').value;
+            try {
+                console.log(`Loading graph data from ${dataSource}...`);
+                const response = await fetch(dataSource);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                fullGraphData = await response.json();
+                
+                console.log('Graph loaded:', fullGraphData.nodes.length, 'nodes,', fullGraphData.edges.length, 'edges');
+                
+                document.getElementById('loading').style.display = 'none';
+                
+                // Show initial message
+                document.getElementById('node-count').textContent = '0';
+                document.getElementById('edge-count').textContent = '0';
+                
+                // Initialize with empty graph (user must search for a model)
+                graphData = { nodes: [], edges: [], metadata: {} };
+                createGraph();
+                animate();
+            } catch (error) {
+                console.error('Error loading graph data:', error);
+                document.getElementById('loading').textContent = `Error loading ${dataSource}. Make sure the file exists.`;
+            }
+        }
+        
+        // Find weakly connected component containing a given node
+        function findConnectedComponent(nodeId) {
+            if (!fullGraphData || !fullGraphData.nodes || !fullGraphData.edges) {
+                return { nodes: [], edges: [] };
+            }
+            
+            const nodeMap = new Map();
+            fullGraphData.nodes.forEach(node => {
+                nodeMap.set(node.id, node);
+            });
+            
+            if (!nodeMap.has(nodeId)) {
+                return { nodes: [], edges: [] };
+            }
+            
+            // Build adjacency list
+            const adjList = new Map();
+            fullGraphData.edges.forEach(edge => {
+                if (!adjList.has(edge.source)) {
+                    adjList.set(edge.source, []);
+                }
+                if (!adjList.has(edge.target)) {
+                    adjList.set(edge.target, []);
+                }
+                adjList.get(edge.source).push(edge.target);
+                adjList.get(edge.target).push(edge.source);
+            });
+            
+            // BFS to find connected component
+            const visited = new Set();
+            const queue = [nodeId];
+            const componentNodes = new Set();
+            
+            while (queue.length > 0) {
+                const current = queue.shift();
+                if (visited.has(current)) continue;
+                
+                visited.add(current);
+                componentNodes.add(current);
+                
+                if (adjList.has(current)) {
+                    adjList.get(current).forEach(neighbor => {
+                        if (!visited.has(neighbor)) {
+                            queue.push(neighbor);
+                        }
+                    });
+                }
+            }
+            
+            // Get component nodes and edges
+            const componentNodeList = Array.from(componentNodes).map(id => nodeMap.get(id)).filter(Boolean);
+            const componentEdges = fullGraphData.edges.filter(edge => 
+                componentNodes.has(edge.source) && componentNodes.has(edge.target)
+            );
+            
+            return {
+                nodes: componentNodeList,
+                edges: componentEdges
+            };
+        }
+        
+        // Create graph visualization
+        function createGraph() {
+            console.log('Creating graph visualization...');
+            
+            // Clear existing
+            nodeMeshes.forEach(mesh => scene.remove(mesh));
+            edgeLines.forEach(line => scene.remove(line));
+            nodeMeshes = [];
+            edgeLines = [];
+            nodes = [];
+            edges = [];
+            nodeMap.clear();
+            
+            // If no graph data, return early
+            if (!graphData || !graphData.nodes || graphData.nodes.length === 0) {
+                console.log('No graph data to visualize');
+                return;
+            }
+            
+            // Create node map
+            graphData.nodes.forEach(node => {
+                nodeMap.set(node.id, node);
+            });
+            
+            // Find root nodes (nodes with no incoming edges) for better initial positioning
+            const rootNodes = new Set();
+            graphData.nodes.forEach(node => {
+                const hasIncoming = graphData.edges.some(edge => edge.target === node.id);
+                if (!hasIncoming) {
+                    rootNodes.add(node.id);
+                }
+            });
+            
+            // If no root nodes found, use first node as root
+            if (rootNodes.size === 0 && graphData.nodes.length > 0) {
+                rootNodes.add(graphData.nodes[0].id);
+            }
+            
+            // Build map of which nodes have children
+            const hasChildren = new Set();
+            graphData.edges.forEach(edge => {
+                hasChildren.add(edge.source);
+            });
+            
+            // Size parameters: nodes with children are 3x the diameter of leaf nodes
+            const leafModelSize = CONFIG.nodeBaseSize * 0.5;
+            const parentModelSize = leafModelSize * 3.0;
+            
+            // Create nodes
+            graphData.nodes.forEach((nodeData, index) => {
+                const isParent = hasChildren.has(nodeData.id);
+                const size = isParent ? parentModelSize : leafModelSize;
+                
+                const geometry = new THREE.SphereGeometry(size, 16, 16);
+                const material = new THREE.MeshPhongMaterial({
+                    color: isParent ? 0xff6b6b : 0x4ecdc4,
+                    emissive: isParent ? 0x330000 : 0x003333,
+                    transparent: true,
+                    opacity: 0.9
+                });
+                
+                const mesh = new THREE.Mesh(geometry, material);
+                
+                // Random initial position (will be updated by force simulation)
+                mesh.position.set(
+                    (Math.random() - 0.5) * 20,
+                    (Math.random() - 0.5) * 20,
+                    (Math.random() - 0.5) * 20
+                );
+                
+                mesh.userData = { nodeData, index };
+                scene.add(mesh);
+                nodeMeshes.push(mesh);
+                nodes.push({ mesh, nodeData, velocity: new THREE.Vector3() });
+            });
+            
+            // Create edges
+            const edgeOpacity = parseFloat(document.getElementById('edge-opacity').value);
+            graphData.edges.forEach(edge => {
+                const sourceNode = nodes.find(n => n.nodeData.id === edge.source);
+                const targetNode = nodes.find(n => n.nodeData.id === edge.target);
+                
+                if (!sourceNode || !targetNode) return;
+                
+                const edgeType = edge.type || 'unknown';
+                const color = EDGE_COLORS[edgeType] || EDGE_COLORS['default'];
+                
+                const geometry = new THREE.BufferGeometry().setFromPoints([
+                    sourceNode.mesh.position,
+                    targetNode.mesh.position
+                ]);
+                
+                const material = new THREE.LineBasicMaterial({
+                    color: color,
+                    transparent: true,
+                    opacity: edgeOpacity
+                });
+                
+                const line = new THREE.Line(geometry, material);
+                line.userData = { edge, edgeType };
+                scene.add(line);
+                edgeLines.push(line);
+            });
+            
+            // Update stats
+            document.getElementById('node-count').textContent = graphData.nodes.length;
+            document.getElementById('edge-count').textContent = graphData.edges.length;
+            
+            // Center camera on graph
+            if (nodes.length > 0) {
+                const center = new THREE.Vector3();
+                nodes.forEach(n => center.add(n.mesh.position));
+                center.divideScalar(nodes.length);
+                
+                camera.position.set(center.x, center.y, center.z + CONFIG.cameraDistance);
+                controls.target.copy(center);
+                controls.update();
+            }
+        }
+        
+        // Simple force-directed layout
+        function updateLayout() {
+            if (nodes.length === 0) return;
+            
+            const k = Math.sqrt((nodes.length * 100) / nodes.length);
+            const repulsion = 0.1;
+            const attraction = 0.01;
+            
+            // Reset forces
+            nodes.forEach(node => {
+                node.velocity.multiplyScalar(0.9); // Damping
+            });
+            
+            // Repulsion between all nodes
+            for (let i = 0; i < nodes.length; i++) {
+                for (let j = i + 1; j < nodes.length; j++) {
+                    const nodeA = nodes[i];
+                    const nodeB = nodes[j];
+                    const distance = nodeA.mesh.position.distanceTo(nodeB.mesh.position);
+                    
+                    if (distance > 0) {
+                        const force = repulsion / (distance * distance);
+                        const direction = new THREE.Vector3()
+                            .subVectors(nodeA.mesh.position, nodeB.mesh.position)
+                            .normalize()
+                            .multiplyScalar(force);
+                        
+                        nodeA.velocity.add(direction);
+                        nodeB.velocity.sub(direction);
+                    }
+                }
+            }
+            
+            // Attraction along edges
+            graphData.edges.forEach(edge => {
+                const sourceNode = nodes.find(n => n.nodeData.id === edge.source);
+                const targetNode = nodes.find(n => n.nodeData.id === edge.target);
+                
+                if (!sourceNode || !targetNode) return;
+                
+                const distance = sourceNode.mesh.position.distanceTo(targetNode.mesh.position);
+                if (distance > 0) {
+                    const force = (distance - k) * attraction;
+                    const direction = new THREE.Vector3()
+                        .subVectors(targetNode.mesh.position, sourceNode.mesh.position)
+                        .normalize()
+                        .multiplyScalar(force);
+                    
+                    sourceNode.velocity.add(direction);
+                    targetNode.velocity.sub(direction);
+                }
+            });
+            
+            // Update positions
+            nodes.forEach(node => {
+                node.mesh.position.add(node.velocity);
+            });
+            
+            // Update edge positions
+            edgeLines.forEach(line => {
+                const edge = line.userData.edge;
+                const sourceNode = nodes.find(n => n.nodeData.id === edge.source);
+                const targetNode = nodes.find(n => n.nodeData.id === edge.target);
+                
+                if (sourceNode && targetNode) {
+                    line.geometry.setFromPoints([
+                        sourceNode.mesh.position,
+                        targetNode.mesh.position
+                    ]);
+                }
+            });
+        }
+        
+        // Animation loop
+        function animate() {
+            animationId = requestAnimationFrame(animate);
+            
+            updateLayout();
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        
+        // Handle window resize
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        // Handle mouse click
+        function onMouseClick(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(nodeMeshes);
+            
+            if (intersects.length > 0) {
+                const clickedMesh = intersects[0].object;
+                const nodeData = clickedMesh.userData.nodeData;
+                
+                showNodeInfo(nodeData);
+                
+                // Highlight selected node
+                if (selectedNode) {
+                    selectedNode.material.emissive.setHex(selectedNode.userData.nodeData.id === nodeData.id ? 0x000000 : 
+                        (hasChildren.has(selectedNode.userData.nodeData.id) ? 0x330000 : 0x003333));
+                }
+                
+                clickedMesh.material.emissive.setHex(0xffff00);
+                selectedNode = clickedMesh;
+            } else {
+                hideNodeInfo();
+                if (selectedNode) {
+                    const hasChildren = new Set();
+                    graphData.edges.forEach(edge => hasChildren.add(edge.source));
+                    selectedNode.material.emissive.setHex(
+                        hasChildren.has(selectedNode.userData.nodeData.id) ? 0x330000 : 0x003333
+                    );
+                    selectedNode = null;
+                }
+            }
+        }
+        
+        // Show node info
+        function showNodeInfo(nodeData) {
+            const infoPanel = document.getElementById('info-panel');
+            document.getElementById('node-name').textContent = nodeData.name || nodeData.id;
+            
+            const details = [];
+            if (nodeData.likes) details.push(`Likes: ${nodeData.likes.toLocaleString()}`);
+            if (nodeData.downloads) details.push(`Downloads: ${nodeData.downloads.toLocaleString()}`);
+            if (nodeData.pipeline_tag) details.push(`Type: ${nodeData.pipeline_tag}`);
+            if (nodeData.library_name) details.push(`Library: ${nodeData.library_name}`);
+            
+            document.getElementById('node-details').textContent = details.join(' • ');
+            infoPanel.style.display = 'block';
+        }
+        
+        // Hide node info
+        function hideNodeInfo() {
+            document.getElementById('info-panel').style.display = 'none';
+        }
+        
+        // Setup UI controls
+        function setupUIControls() {
+            // Data source selector
+            document.getElementById('data-source').addEventListener('change', () => {
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('loading').textContent = 'Loading graph data...';
+                loadGraphData();
+            });
+            
+            // Search functionality
+            const searchInput = document.getElementById('search');
+            const searchBtn = document.getElementById('search-btn');
+            const autocompleteResults = document.getElementById('autocomplete-results');
+            
+            let searchTimeout;
+            searchInput.addEventListener('input', () => {
+                clearTimeout(searchTimeout);
+                const query = searchInput.value.toLowerCase().trim();
+                
+                if (query.length < 2) {
+                    autocompleteResults.style.display = 'none';
+                    return;
+                }
+                
+                searchTimeout = setTimeout(() => {
+                    if (!fullGraphData || !fullGraphData.nodes) return;
+                    
+                    const matches = fullGraphData.nodes
+                        .filter(node => {
+                            const name = (node.name || '').toLowerCase();
+                            const id = node.id.toLowerCase();
+                            return name.includes(query) || id.includes(query);
+                        })
+                        .slice(0, 10);
+                    
+                    if (matches.length > 0) {
+                        autocompleteResults.innerHTML = matches.map(node => `
+                            <div class="autocomplete-item" data-id="${node.id}">
+                                <div class="model-id">${highlightMatch(node.id, query)}</div>
+                                <div class="model-name">${node.name || ''}</div>
+                            </div>
+                        `).join('');
+                        
+                        autocompleteResults.style.display = 'block';
+                        
+                        // Add click handlers
+                        autocompleteResults.querySelectorAll('.autocomplete-item').forEach(item => {
+                            item.addEventListener('click', () => {
+                                const nodeId = item.dataset.id;
+                                searchInput.value = nodeId;
+                                autocompleteResults.style.display = 'none';
+                                loadComponent(nodeId);
+                            });
+                        });
+                    } else {
+                        autocompleteResults.style.display = 'none';
+                    }
+                }, 300);
+            });
+            
+            searchBtn.addEventListener('click', () => {
+                const query = searchInput.value.trim();
+                if (query) {
+                    loadComponent(query);
+                }
+            });
+            
+            // Edge opacity
+            document.getElementById('edge-opacity').addEventListener('input', (e) => {
+                const opacity = parseFloat(e.target.value);
+                document.getElementById('edge-opacity-value').textContent = opacity.toFixed(1);
+                edgeLines.forEach(line => {
+                    line.material.opacity = opacity;
+                });
+            });
+            
+            // Edge type filters
+            ['filter-finetune', 'filter-quantized', 'filter-adapter', 'filter-unknown'].forEach(filterId => {
+                document.getElementById(filterId).addEventListener('change', updateEdgeVisibility);
+            });
+        }
+        
+        // Load component for a given node
+        function loadComponent(nodeId) {
+            if (!fullGraphData) {
+                alert('Graph data not loaded yet. Please wait...');
+                return;
+            }
+            
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('loading').textContent = `Loading component for ${nodeId}...`;
+            
+            setTimeout(() => {
+                const component = findConnectedComponent(nodeId);
+                
+                if (component.nodes.length === 0) {
+                    alert(`Model "${nodeId}" not found in the graph.`);
+                    document.getElementById('loading').style.display = 'none';
+                    return;
+                }
+                
+                graphData = component;
+                document.getElementById('component-info').textContent = 
+                    `Component: ${component.nodes.length} nodes, ${component.edges.length} edges`;
+                
+                createGraph();
+                document.getElementById('loading').style.display = 'none';
+            }, 100);
+        }
+        
+        // Update edge visibility based on filters
+        function updateEdgeVisibility() {
+            const showFinetune = document.getElementById('filter-finetune').checked;
+            const showQuantized = document.getElementById('filter-quantized').checked;
+            const showAdapter = document.getElementById('filter-adapter').checked;
+            const showUnknown = document.getElementById('filter-unknown').checked;
+            
+            edgeLines.forEach(line => {
+                const edgeType = line.userData.edgeType || 'unknown';
+                let visible = false;
+                
+                if (edgeType === 'finetune' && showFinetune) visible = true;
+                else if (edgeType === 'quantized' && showQuantized) visible = true;
+                else if (edgeType === 'adapter' && showAdapter) visible = true;
+                else if (showUnknown) visible = true;
+                
+                line.visible = visible;
+            });
+        }
+        
+        // Highlight search match in text
+        function highlightMatch(text, query) {
+            const index = text.toLowerCase().indexOf(query.toLowerCase());
+            if (index === -1) return text;
+            
+            return text.substring(0, index) +
+                   `<span class="highlight">${text.substring(index, index + query.length)}</span>` +
+                   text.substring(index + query.length);
+        }
+        
+        // Start the application
+        init();
+    </script>
+</body>
+</html>
+
