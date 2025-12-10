@@ -516,13 +516,31 @@
                 
                 document.getElementById('loading').style.display = 'none';
                 
-                // Show initial message
-                document.getElementById('node-count').textContent = '0';
-                document.getElementById('edge-count').textContent = '0';
+                // Auto-load the connected component for zera09/SmolVLM
+                const defaultModelId = 'zera09/SmolVLM';
+                console.log(`Auto-loading component for ${defaultModelId}...`);
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('loading').textContent = `Loading component for ${defaultModelId}...`;
                 
-                // Initialize with empty graph (user must search for a model)
-                graphData = { nodes: [], edges: [], metadata: {} };
-                createGraph();
+                // Find and load the component
+                const component = findConnectedComponent(defaultModelId);
+                
+                if (component.nodes.length > 0) {
+                    graphData = component;
+                    document.getElementById('component-info').textContent = 
+                        `Component: ${component.nodes.length} nodes, ${component.edges.length} edges (${defaultModelId})`;
+                    createGraph();
+                    document.getElementById('loading').style.display = 'none';
+                } else {
+                    // If model not found, show empty graph
+                    console.warn(`Model ${defaultModelId} not found in graph`);
+                    document.getElementById('component-info').textContent = 
+                        `Model ${defaultModelId} not found. Search for a model to load its component.`;
+                    graphData = { nodes: [], edges: [], metadata: {} };
+                    createGraph();
+                    document.getElementById('loading').style.display = 'none';
+                }
+                
                 animate();
             } catch (error) {
                 console.error('Error loading graph data:', error);

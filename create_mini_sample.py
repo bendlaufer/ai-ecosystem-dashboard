@@ -5,7 +5,7 @@ This creates a small connected component with a few nodes and edges.
 import json
 import random
 
-def create_mini_sample(input_file='graph_data.json', output_file='graph_data_mini.json', max_nodes=50):
+def create_mini_sample(input_file='graph_data.json', output_file='graph_data_mini.json', max_nodes=None):
     """
     Create a mini sample from the full graph_data.json.
     Takes a random connected component or creates a small sample.
@@ -47,8 +47,13 @@ def create_mini_sample(input_file='graph_data.json', output_file='graph_data_min
         if not nodes_with_edges:
             raise ValueError("No edges found in graph!")
         
-        # Start with a node that has connections
-        start_node_id = random.choice(list(nodes_with_edges))
+        # Start with the specific model: zera09/SmolVLM
+        target_model = 'zera09/SmolVLM'
+        if target_model not in node_map:
+            print(f"Warning: {target_model} not found in graph. Using random node instead.")
+            start_node_id = random.choice(list(nodes_with_edges))
+        else:
+            start_node_id = target_model
         print(f"Starting from node: {start_node_id}")
         
         # BFS to collect a small connected component
@@ -57,7 +62,7 @@ def create_mini_sample(input_file='graph_data.json', output_file='graph_data_min
         selected_nodes = set()
         selected_edges_dict = {}  # Use dict to store edges by (source, target) key
         
-        while queue and len(selected_nodes) < max_nodes:
+        while queue and (max_nodes is None or len(selected_nodes) < max_nodes):
             current = queue.pop(0)
             if current in visited:
                 continue
@@ -73,7 +78,7 @@ def create_mini_sample(input_file='graph_data.json', output_file='graph_data_min
                     if target in node_map:  # Make sure target exists
                         edge_key = (edge['source'], edge['target'])
                         selected_edges_dict[edge_key] = edge
-                        if target not in visited and len(selected_nodes) < max_nodes:
+                        if target not in visited and (max_nodes is None or len(selected_nodes) < max_nodes):
                             queue.append(target)
             
             # Add incoming edges
@@ -83,7 +88,7 @@ def create_mini_sample(input_file='graph_data.json', output_file='graph_data_min
                     if source in node_map:  # Make sure source exists
                         edge_key = (edge['source'], edge['target'])
                         selected_edges_dict[edge_key] = edge
-                        if source not in visited and len(selected_nodes) < max_nodes:
+                        if source not in visited and (max_nodes is None or len(selected_nodes) < max_nodes):
                             queue.append(source)
         
         # Build the mini graph
