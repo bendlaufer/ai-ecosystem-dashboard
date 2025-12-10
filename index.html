@@ -451,11 +451,25 @@
                     throw new Error(`HTTP error! status: ${response.status} - Could not load component index`);
                 }
                 
+                // Check response size
+                const contentLength = response.headers.get('content-length');
+                if (contentLength) {
+                    const sizeMB = parseInt(contentLength) / (1024 * 1024);
+                    console.log(`Loading index file: ${sizeMB.toFixed(2)} MB`);
+                    document.getElementById('loading').textContent = 
+                        `Loading component index (${sizeMB.toFixed(2)} MB)...`;
+                }
+                
                 // Decompress
                 const compressedData = await response.arrayBuffer();
+                console.log(`Downloaded: ${(compressedData.byteLength / 1024 / 1024).toFixed(2)} MB`);
+                
+                document.getElementById('loading').textContent = 'Decompressing index...';
                 const stream = new DecompressionStream('gzip');
                 const decompressedStream = new Response(compressedData).body.pipeThrough(stream);
                 const decompressedData = await new Response(decompressedStream).arrayBuffer();
+                console.log(`Decompressed: ${(decompressedData.byteLength / 1024 / 1024).toFixed(2)} MB`);
+                
                 const jsonText = new TextDecoder().decode(decompressedData);
                 
                 // Validate JSON before parsing
@@ -463,13 +477,20 @@
                     throw new Error('Empty response from server');
                 }
                 
+                if (jsonText.length < 100) {
+                    console.error('Response too short:', jsonText);
+                    throw new Error('Response appears to be incomplete or corrupted');
+                }
+                
                 let indexData;
                 try {
+                    document.getElementById('loading').textContent = 'Parsing index...';
                     indexData = JSON.parse(jsonText);
                 } catch (parseError) {
                     console.error('JSON parse error. Response length:', jsonText.length);
                     console.error('First 500 chars:', jsonText.substring(0, 500));
-                    throw new Error(`Invalid JSON: ${parseError.message}`);
+                    console.error('Last 500 chars:', jsonText.substring(Math.max(0, jsonText.length - 500)));
+                    throw new Error(`Invalid JSON: ${parseError.message}. File may be corrupted or incomplete.`);
                 }
                 
                 const index = indexData.index || indexData.component_index;
