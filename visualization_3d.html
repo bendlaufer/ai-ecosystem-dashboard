@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Ecosystem 3D Network Visualization</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        #container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+        }
+        
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 350px;
+            z-index: 100;
+        }
+        
+        #controls h2 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 18px;
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+            font-size: 14px;
+        }
+        
+        input[type="text"],
+        input[type="range"],
+        select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        input[type="range"] {
+            padding: 0;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .checkbox-item input[type="checkbox"] {
+            width: auto;
+        }
+        
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            width: 100%;
+            margin-top: 10px;
+            transition: background 0.3s;
+        }
+        
+        button:hover {
+            background: #5568d3;
+        }
+        
+        #info-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            display: none;
+            z-index: 100;
+        }
+        
+        #info-panel h3 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        #info-panel p {
+            margin: 5px 0;
+            color: #666;
+            font-size: 14px;
+        }
+        
+        #stats {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 100;
+            font-size: 14px;
+            color: #555;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 24px;
+            z-index: 200;
+        }
+        
+        .edge-type-color {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        
+        /* Autocomplete styles */
+        .autocomplete-container {
+            position: relative;
+            width: 100%;
+        }
+        
+        #autocomplete-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #ddd;
+            border-top: none;
+            border-radius: 0 0 5px 5px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        #autocomplete-results.show {
+            display: block;
+        }
+        
+        .autocomplete-item {
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+        
+        .autocomplete-item:hover,
+        .autocomplete-item.selected {
+            background: #f0f0f0;
+        }
+        
+        .autocomplete-item:last-child {
+            border-bottom: none;
+        }
+        
+        .autocomplete-item .model-id {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .autocomplete-item .model-name {
+            color: #666;
+            font-size: 12px;
+            margin-top: 2px;
+        }
+        
+        .autocomplete-item .highlight {
+            background: #fff3cd;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="canvas-container"></div>
+        <div class="loading" id="loading">Loading graph data...</div>
+        
+        <div id="controls">
+            <h2>Model Tree Dashboard</h2>
+            <p style="font-size: 12px; color: #666; margin-bottom: 15px;">
+                Search for any model ID to view its model tree.
+            </p>
+            
+            <div class="control-group">
+                <label for="search">Search Model ID:</label>
+                <div class="autocomplete-container">
+                    <input type="text" id="search" placeholder="Type to search... (e.g., zera09/SmolVLM)">
+                    <div id="autocomplete-results"></div>
+                </div>
+                <button id="search-btn" style="margin-top: 5px;">Search & Load Component</button>
+            </div>
+            
+            <div class="control-group">
+                <label>Current Component:</label>
+                <p id="component-info" style="font-size: 12px; color: #666; margin-top: 5px;">
+                    Search for a model ID to load its connected component
+                </p>
+            </div>
+            
+            <div class="control-group">
+                <label>Edge Types:</label>
+                <div class="checkbox-group">
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="filter-finetune" checked>
+                        <span class="edge-type-color" style="background: #ff6b6b;"></span>
+                        <label for="filter-finetune">Finetune</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="filter-quantized" checked>
+                        <span class="edge-type-color" style="background: #4ecdc4;"></span>
+                        <label for="filter-quantized">Quantized</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="filter-adapter" checked>
+                        <span class="edge-type-color" style="background: #45b7d1;"></span>
+                        <label for="filter-adapter">Adapter</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="filter-unknown" checked>
+                        <span class="edge-type-color" style="background: #96ceb4;"></span>
+                        <label for="filter-unknown">Other</label>
+                    </div>
+                </div>
+            </div>
+            
+            
+            <div class="control-group">
+                <label for="edge-opacity">Edge Opacity: <span id="edge-opacity-value">0.3</span></label>
+                <input type="range" id="edge-opacity" min="0" max="1" step="0.1" value="0.3">
+            </div>
+        </div>
+        
+        <div id="info-panel">
+            <h3 id="node-name"></h3>
+            <p id="node-details"></p>
+        </div>
+        
+        <div id="stats">
+            <div><strong>Nodes:</strong> <span id="node-count">0</span></div>
+            <div><strong>Edges:</strong> <span id="edge-count">0</span></div>
+            <div><strong>Selected:</strong> <span id="selected-count">0</span></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <script>
+        // Configuration
+        const CONFIG = {
+            nodeColors: {
+                default: 0x667eea,  // All nodes same color
+                selected: 0xff6b6b,
+                hover: 0x4ecdc4
+            },
+            edgeColors: {
+                finetune: 0xff6b6b,
+                quantized: 0x4ecdc4,
+                adapter: 0x45b7d1,
+                unknown: 0x96ceb4
+            },
+            nodeBaseSize: 0.8,  // Uniform size for all nodes (slightly larger for visibility)
+            edgeOpacity: 0.5,  // Increased opacity for better visibility
+            forceStrength: 0.3,  // Attraction strength for edges
+            repulsionStrength: 50.0  // Repulsion strength between nodes
+        };
+
+        // Global variables
+        let scene, camera, renderer, controls;
+        let fullGraphData = null;  // Full graph (all nodes and edges)
+        let graphData = null;       // Currently displayed component
+        let nodes = [];
+        let edges = [];
+        let nodeMeshes = [];
+        let edgeLines = [];
+        let selectedNode = null;
+        let nodeMap = new Map();
+        let edgeTypeFilters = {
+            finetune: true,
+            quantized: true,
+            adapter: true,
+            unknown: true
+        };
+
+        // Initialize Three.js scene
+        function initScene() {
+            const container = document.getElementById('canvas-container');
+            
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a0a);
+            
+            // Camera
+            camera = new THREE.PerspectiveCamera(
+                75,
+                window.innerWidth / window.innerHeight,
+                0.1,
+                10000
+            );
+            camera.position.set(0, 0, 100);
+            
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            container.appendChild(renderer.domElement);
+            
+            // Controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.minDistance = 10;
+            controls.maxDistance = 500;
+            
+            // Lighting - brighter for better visibility
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(ambientLight);
+            
+            const directionalLight1 = new THREE.DirectionalLight(0xffffff, 0.9);
+            directionalLight1.position.set(1, 1, 1);
+            scene.add(directionalLight1);
+            
+            const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.5);
+            directionalLight2.position.set(-1, -1, -1);
+            scene.add(directionalLight2);
+            
+            // Raycaster for mouse interaction
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+            
+            // Event listeners
+            window.addEventListener('resize', onWindowResize);
+            renderer.domElement.addEventListener('mousemove', onMouseMove);
+            renderer.domElement.addEventListener('click', onMouseClick);
+            
+            // UI controls
+            setupUIControls();
+        }
+
+        // Load full graph data
+        async function loadGraphData() {
+            try {
+                console.log('Loading full graph data...');
+                const response = await fetch('graph_data.json');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                fullGraphData = await response.json();
+                
+                console.log('Full graph loaded:', fullGraphData.nodes.length, 'nodes,', fullGraphData.edges.length, 'edges');
+                
+                // Check if this is actually a full graph or just a single component
+                if (fullGraphData.metadata && fullGraphData.metadata.full_graph) {
+                    console.log('✓ Full graph confirmed (metadata.full_graph = true)');
+                } else if (fullGraphData.nodes.length < 10000) {
+                    console.warn('⚠ Warning: Graph seems small. Expected full graph with ~1.8M nodes.');
+                    console.warn('This might be a single component. Please re-run the export_full_graph_to_json function in the notebook.');
+                }
+                
+                document.getElementById('loading').style.display = 'none';
+                
+                // Show initial message
+                document.getElementById('node-count').textContent = '0';
+                document.getElementById('edge-count').textContent = '0';
+                
+                // Initialize with empty graph (user must search for a model)
+                graphData = { nodes: [], edges: [], metadata: {} };
+                createGraph();
+                animate();
+            } catch (error) {
+                console.error('Error loading graph data:', error);
+                document.getElementById('loading').textContent = 'Error loading graph data. Make sure graph_data.json exists.';
+            }
+        }
+        
+        // Find weakly connected component containing a given node
+        function findConnectedComponent(modelId) {
+            if (!fullGraphData) {
+                console.error('Full graph data not loaded');
+                alert('Full graph data not loaded. Please make sure graph_data.json contains the full graph.');
+                return null;
+            }
+            
+            console.log(`Looking for model '${modelId}' in graph with ${fullGraphData.nodes.length} nodes`);
+            
+            // Check if model exists in the graph
+            const modelExists = fullGraphData.nodes.some(node => node.id === modelId);
+            if (!modelExists) {
+                console.error(`Model '${modelId}' not found in graph`);
+                // Try to find similar model IDs
+                const similar = fullGraphData.nodes
+                    .filter(node => node.id.toLowerCase().includes(modelId.toLowerCase()) || 
+                                   node.name.toLowerCase().includes(modelId.toLowerCase()))
+                    .slice(0, 5)
+                    .map(node => node.id);
+                if (similar.length > 0) {
+                    alert(`Model '${modelId}' not found. Did you mean one of these?\n${similar.join('\n')}`);
+                } else {
+                    alert(`Model '${modelId}' not found in graph. Make sure you're using the exact model ID.`);
+                }
+                return null;
+            }
+            
+            // Build adjacency list (undirected for weak connectivity)
+            const adjacency = new Map();
+            fullGraphData.nodes.forEach(node => {
+                adjacency.set(node.id, new Set());
+            });
+            
+            // Add edges in both directions (for weak connectivity)
+            fullGraphData.edges.forEach(edge => {
+                if (adjacency.has(edge.source) && adjacency.has(edge.target)) {
+                    adjacency.get(edge.source).add(edge.target);
+                    adjacency.get(edge.target).add(edge.source);
+                }
+            });
+            
+            // BFS to find connected component
+            if (!adjacency.has(modelId)) {
+                console.error(`Model '${modelId}' found in nodes but not in adjacency map`);
+                return null;
+            }
+            
+            const component = new Set();
+            const queue = [modelId];
+            component.add(modelId);
+            
+            while (queue.length > 0) {
+                const current = queue.shift();
+                const neighbors = adjacency.get(current) || new Set();
+                
+                neighbors.forEach(neighbor => {
+                    if (!component.has(neighbor)) {
+                        component.add(neighbor);
+                        queue.push(neighbor);
+                    }
+                });
+            }
+            
+            // Filter nodes and edges to this component
+            const componentNodes = fullGraphData.nodes.filter(node => component.has(node.id));
+            const componentEdges = fullGraphData.edges.filter(edge => 
+                component.has(edge.source) && component.has(edge.target)
+            );
+            
+            return {
+                nodes: componentNodes,
+                edges: componentEdges,
+                metadata: {
+                    root_model: modelId,
+                    component_size: component.size
+                }
+            };
+        }
+        
+        // Search and load component for a model
+        function searchAndLoadComponent(modelId) {
+            if (!modelId || !modelId.trim()) {
+                alert('Please enter a model ID');
+                return;
+            }
+            
+            console.log(`Searching for model: ${modelId}`);
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('loading').textContent = `Finding connected component for ${modelId}...`;
+            
+            // Small delay to show loading message
+            setTimeout(() => {
+                const component = findConnectedComponent(modelId.trim());
+                
+                if (!component) {
+                    document.getElementById('loading').textContent = `Model '${modelId}' not found in graph`;
+                    setTimeout(() => {
+                        document.getElementById('loading').style.display = 'none';
+                    }, 2000);
+                    return;
+                }
+                
+                console.log(`Found component: ${component.nodes.length} nodes, ${component.edges.length} edges`);
+                
+                // Update graph data
+                graphData = component;
+                
+                // Update UI
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('node-count').textContent = component.nodes.length;
+                document.getElementById('edge-count').textContent = component.edges.length;
+                document.getElementById('component-info').textContent = 
+                    `${modelId} (${component.nodes.length} nodes)`; // ${component.edges.length} edges
+                
+                // Recreate graph with new component
+                createGraph();
+            }, 100);
+        }
+
+
+        // Create graph visualization
+        function createGraph() {
+            console.log('Creating graph visualization...');
+            
+            // Clear existing
+            nodeMeshes.forEach(mesh => scene.remove(mesh));
+            edgeLines.forEach(line => scene.remove(line));
+            nodeMeshes = [];
+            edgeLines = [];
+            nodes = [];
+            edges = [];
+            nodeMap.clear();
+            
+            // If no graph data, return early
+            if (!graphData || !graphData.nodes || graphData.nodes.length === 0) {
+                console.log('No graph data to visualize');
+                return;
+            }
+            
+            // Create node map
+            graphData.nodes.forEach(node => {
+                nodeMap.set(node.id, node);
+            });
+            
+            // Find root nodes (nodes with no incoming edges) for better initial positioning
+            const rootNodes = new Set();
+            graphData.nodes.forEach(node => {
+                const hasIncoming = graphData.edges.some(edge => edge.target === node.id);
+                if (!hasIncoming) {
+                    rootNodes.add(node.id);
+                }
+            });
+            
+            // If no root nodes found, use first node as root
+            if (rootNodes.size === 0 && graphData.nodes.length > 0) {
+                rootNodes.add(graphData.nodes[0].id);
+            }
+            
+            // Build map of which nodes have children
+            const hasChildren = new Set();
+            graphData.edges.forEach(edge => {
+                hasChildren.add(edge.source);
+            });
+            
+            // Size parameters: nodes with children are 3x the diameter of leaf nodes
+            const leafModelSize = CONFIG.nodeBaseSize * 0.5;  // Leaf nodes (no children)
+            const parentModelSize = leafModelSize * 3.0;     // Nodes with children (10x diameter)
+            
+            // Create nodes - two sizes: with children vs leaf nodes
+            graphData.nodes.forEach((nodeData, index) => {
+                // Determine size: large if has children, small if leaf node
+                const size = hasChildren.has(nodeData.id) ? parentModelSize : leafModelSize;
+                const geometry = new THREE.SphereGeometry(size, 16, 16);
+                const material = new THREE.MeshPhongMaterial({
+                    color: CONFIG.nodeColors.default,  // All nodes same color
+                    emissive: CONFIG.nodeColors.default,
+                    emissiveIntensity: 0.3,
+                    shininess: 30
+                });
+                
+                const mesh = new THREE.Mesh(geometry, material);
+                
+                // Better initial positioning for tree structure
+                // Root nodes start at origin, others spread outward
+                if (rootNodes.has(nodeData.id)) {
+                    mesh.position.set(0, 0, 0);
+                } else {
+                    // Spread nodes in a sphere around origin
+                    const radius = Math.sqrt(index) * 1.5;
+                    const theta = Math.random() * Math.PI * 2;
+                    const phi = Math.acos(2 * Math.random() - 1);
+                    mesh.position.set(
+                        radius * Math.sin(phi) * Math.cos(theta),
+                        radius * Math.sin(phi) * Math.sin(theta),
+                        radius * Math.cos(phi)
+                    );
+                }
+                
+                mesh.userData = {
+                    nodeId: nodeData.id,
+                    nodeData: nodeData,
+                    originalColor: CONFIG.nodeColors.default
+                };
+                
+                scene.add(mesh);
+                nodeMeshes.push(mesh);
+                nodes.push({
+                    mesh: mesh,
+                    data: nodeData,
+                    velocity: new THREE.Vector3(0, 0, 0)
+                });
+            });
+            
+            console.log('Created', nodes.length, 'nodes');
+            
+            // Create edges
+            graphData.edges.forEach(edgeData => {
+                const sourceNode = nodeMap.get(edgeData.source);
+                const targetNode = nodeMap.get(edgeData.target);
+                
+                if (!sourceNode || !targetNode) return;
+                
+                const sourceMesh = nodeMeshes.find(m => m.userData.nodeId === edgeData.source);
+                const targetMesh = nodeMeshes.find(m => m.userData.nodeId === edgeData.target);
+                
+                if (!sourceMesh || !targetMesh) return;
+                
+                const edgeType = edgeData.type || 'unknown';
+                const color = CONFIG.edgeColors[edgeType] || CONFIG.edgeColors.unknown;
+                
+                const geometry = new THREE.BufferGeometry().setFromPoints([
+                    sourceMesh.position,
+                    targetMesh.position
+                ]);
+                
+                const material = new THREE.LineBasicMaterial({
+                    color: color,
+                    opacity: CONFIG.edgeOpacity,
+                    transparent: true
+                });
+                
+                const line = new THREE.Line(geometry, material);
+                line.userData = {
+                    source: edgeData.source,
+                    target: edgeData.target,
+                    type: edgeType
+                };
+                
+                scene.add(line);
+                edgeLines.push(line);
+                edges.push({
+                    line: line,
+                    source: sourceMesh,
+                    target: targetMesh,
+                    type: edgeType
+                });
+            });
+            
+            console.log('Created', edges.length, 'edges');
+            
+            // Run 3D force-directed layout
+            runForceLayout3D();
+        }
+
+        // 3D Force-directed layout algorithm - optimized for tree structures
+        function runForceLayout3D() {
+            console.log('Starting 3D force-directed layout for', nodes.length, 'nodes and', edges.length, 'edges');
+            
+            // Find root nodes (nodes with no incoming edges) - these will be anchored at origin
+            const rootNodes = new Set();
+            const nodeIdToNode = new Map();
+            const incomingEdges = new Map();
+            
+            nodes.forEach(node => {
+                nodeIdToNode.set(node.data.id, node);
+                incomingEdges.set(node.data.id, []);
+            });
+            
+            edges.forEach(edge => {
+                const sourceId = edge.source.userData.nodeId;
+                const targetId = edge.target.userData.nodeId;
+                if (sourceId && targetId) {
+                    incomingEdges.get(targetId).push(sourceId);
+                }
+            });
+            
+            nodes.forEach(node => {
+                if (incomingEdges.get(node.data.id).length === 0) {
+                    rootNodes.add(node.data.id);
+                }
+            });
+            
+            console.log('Found', rootNodes.size, 'root nodes');
+            
+            // Initialize positions: root nodes at origin, others spread in sphere
+            nodes.forEach((node, index) => {
+                if (rootNodes.has(node.data.id)) {
+                    // Root nodes start at origin with slight random offset
+                    node.mesh.position.set(
+                        (Math.random() - 0.5) * 2,
+                        (Math.random() - 0.5) * 2,
+                        (Math.random() - 0.5) * 2
+                    );
+                } else {
+                    // Other nodes start in a sphere around origin
+                    const radius = 10 + Math.sqrt(index) * 0.5;
+                    const theta = Math.random() * Math.PI * 2;
+                    const phi = Math.acos(2 * Math.random() - 1);
+                    node.mesh.position.set(
+                        radius * Math.sin(phi) * Math.cos(theta),
+                        radius * Math.sin(phi) * Math.sin(theta),
+                        radius * Math.cos(phi)
+                    );
+                }
+                // Initialize velocity
+                node.velocity = new THREE.Vector3(0, 0, 0);
+            });
+            
+            // Force layout parameters
+            const idealDistance = 8.0;  // Target distance between connected nodes
+            const minDistance = 3.0;    // Minimum distance to prevent overlap
+            const maxDistance = 50.0;   // Maximum distance for edge attraction
+            const attractionStrength = CONFIG.forceStrength || 0.3;
+            const repulsionStrength = CONFIG.repulsionStrength || 50.0;
+            const damping = 0.88;
+            const iterations = 120;  // Optimized iterations for good convergence
+            
+            // Build edge map for efficient lookup
+            const edgeMap = new Map();
+            edges.forEach(edge => {
+                const sourceId = edge.source.userData.nodeId;
+                const targetId = edge.target.userData.nodeId;
+                if (!edgeMap.has(sourceId)) {
+                    edgeMap.set(sourceId, []);
+                }
+                edgeMap.get(sourceId).push(targetId);
+            });
+            
+            // Run force-directed iterations with progress updates
+            const progressInterval = Math.max(1, Math.floor(iterations / 10));
+            for (let iter = 0; iter < iterations; iter++) {
+                // Show progress
+                if (iter % progressInterval === 0) {
+                    console.log(`Force layout iteration ${iter}/${iterations} (${Math.round(iter/iterations*100)}%)`);
+                }
+                
+                // Reset forces
+                nodes.forEach(node => {
+                    node.force = new THREE.Vector3(0, 0, 0);
+                });
+                
+                // Repulsion between all nodes (Coulomb-like force)
+                // Optimized: only compute repulsion for nearby nodes (within cutoff distance)
+                const repulsionCutoff = 30.0;  // Only compute repulsion for nodes within this distance
+                for (let i = 0; i < nodes.length; i++) {
+                    const nodeA = nodes[i];
+                    for (let j = i + 1; j < nodes.length; j++) {
+                        const nodeB = nodes[j];
+                        const distanceVec = new THREE.Vector3()
+                            .subVectors(nodeA.mesh.position, nodeB.mesh.position);
+                        const distance = distanceVec.length();
+                        
+                        if (distance > 0.01 && distance < repulsionCutoff) {
+                            // Strong repulsion when too close
+                            let forceMagnitude;
+                            if (distance < minDistance) {
+                                forceMagnitude = repulsionStrength * 3 / (distance * distance);
+                            } else {
+                                forceMagnitude = repulsionStrength / (distance * distance);
+                            }
+                            
+                            const force = distanceVec.normalize().multiplyScalar(forceMagnitude);
+                            nodeA.force.add(force);
+                            nodeB.force.sub(force);
+                        }
+                    }
+                }
+                
+                // Attraction along edges (spring force)
+                edges.forEach(edge => {
+                    const sourceMesh = edge.source;
+                    const targetMesh = edge.target;
+                    const sourceNode = nodes.find(n => n.mesh === sourceMesh);
+                    const targetNode = nodes.find(n => n.mesh === targetMesh);
+                    
+                    if (!sourceNode || !targetNode) return;
+                    
+                    const distanceVec = new THREE.Vector3()
+                        .subVectors(targetMesh.position, sourceMesh.position);
+                    const distance = distanceVec.length();
+                    
+                    if (distance > 0.01) {
+                        // Spring force: stronger when distance deviates from ideal
+                        const forceMagnitude = attractionStrength * (distance - idealDistance);
+                        const force = distanceVec.normalize().multiplyScalar(forceMagnitude);
+                        
+                        sourceNode.force.add(force);
+                        targetNode.force.sub(force);
+                    }
+                });
+                
+                // Anchor root nodes near origin (weak constraint)
+                nodes.forEach(node => {
+                    if (rootNodes.has(node.data.id)) {
+                        const distanceFromOrigin = node.mesh.position.length();
+                        if (distanceFromOrigin > 5) {
+                            const anchorForce = node.mesh.position.clone()
+                                .normalize()
+                                .multiplyScalar(-0.1 * distanceFromOrigin);
+                            node.force.add(anchorForce);
+                        }
+                    }
+                });
+                
+                // Update positions with velocity and damping
+                const adaptiveDamping = damping + (iter / iterations) * 0.1;  // Increase damping over time
+                nodes.forEach(node => {
+                    node.velocity.add(node.force.multiplyScalar(0.1));  // Small time step
+                    node.velocity.multiplyScalar(adaptiveDamping);
+                    
+                    // Limit velocity to prevent instability
+                    const maxVelocity = 5.0;
+                    if (node.velocity.length() > maxVelocity) {
+                        node.velocity.normalize().multiplyScalar(maxVelocity);
+                    }
+                    
+                    node.mesh.position.add(node.velocity);
+                });
+                
+                // Update edges periodically (every 10 iterations for performance)
+                if (iter % 10 === 0) {
+                    updateEdges();
+                }
+            }
+            
+            // Final edge update
+            updateEdges();
+            
+            // Center the graph
+            const bounds = getGraphBounds();
+            const centerX = (bounds.minX + bounds.maxX) / 2;
+            const centerY = (bounds.minY + bounds.maxY) / 2;
+            const centerZ = (bounds.minZ + bounds.maxZ) / 2;
+            
+            nodes.forEach(node => {
+                node.mesh.position.x -= centerX;
+                node.mesh.position.y -= centerY;
+                node.mesh.position.z -= centerZ;
+            });
+            
+            // Update edges after centering
+            updateEdges();
+            
+            // Auto-fit camera to graph bounds
+            fitCameraToGraph();
+            
+            console.log('3D force-directed layout complete');
+        }
+        
+        // Get bounding box of all nodes
+        function getGraphBounds() {
+            if (nodes.length === 0) {
+                return { minX: -10, maxX: 10, minY: -10, maxY: 10, minZ: -10, maxZ: 10 };
+            }
+            
+            let minX = Infinity, maxX = -Infinity;
+            let minY = Infinity, maxY = -Infinity;
+            let minZ = Infinity, maxZ = -Infinity;
+            
+            nodes.forEach(node => {
+                const pos = node.mesh.position;
+                minX = Math.min(minX, pos.x);
+                maxX = Math.max(maxX, pos.x);
+                minY = Math.min(minY, pos.y);
+                maxY = Math.max(maxY, pos.y);
+                minZ = Math.min(minZ, pos.z);
+                maxZ = Math.max(maxZ, pos.z);
+            });
+            
+            return { minX, maxX, minY, maxY, minZ, maxZ };
+        }
+        
+        // Auto-fit camera to show entire graph
+        function fitCameraToGraph() {
+            const bounds = getGraphBounds();
+            const width = bounds.maxX - bounds.minX;
+            const height = bounds.maxY - bounds.minY;
+            const depth = bounds.maxZ - bounds.minZ;
+            const maxDim = Math.max(width, height, depth);
+            
+            // Calculate distance needed to view entire graph
+            const distance = maxDim * 1.5;
+            
+            // Position camera to view the graph
+            camera.position.set(0, 0, Math.max(distance, 50));
+            controls.target.set(0, 0, 0);
+            controls.update();
+        }
+
+        // Update edge positions
+        function updateEdges() {
+            edges.forEach(edge => {
+                const geometry = edge.line.geometry;
+                geometry.setFromPoints([
+                    edge.source.position,
+                    edge.target.position
+                ]);
+                geometry.attributes.position.needsUpdate = true;
+            });
+        }
+
+        // Mouse interaction
+        function onMouseMove(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(nodeMeshes);
+            
+            // Reset hover
+            nodeMeshes.forEach(mesh => {
+                if (mesh !== selectedNode) {
+                    mesh.material.color.setHex(mesh.userData.originalColor);
+                }
+            });
+            
+            // Highlight hovered node
+            if (intersects.length > 0) {
+                const hoveredMesh = intersects[0].object;
+                if (hoveredMesh !== selectedNode) {
+                    hoveredMesh.material.color.setHex(CONFIG.nodeColors.hover);
+                }
+            }
+        }
+
+        function onMouseClick(event) {
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(nodeMeshes);
+            
+            if (intersects.length > 0) {
+                const clickedMesh = intersects[0].object;
+                selectNode(clickedMesh);
+            } else {
+                deselectNode();
+            }
+        }
+
+        function selectNode(mesh) {
+            // Deselect previous
+            if (selectedNode) {
+                selectedNode.material.color.setHex(selectedNode.userData.originalColor);
+            }
+            
+            // Select new
+            selectedNode = mesh;
+            mesh.material.color.setHex(CONFIG.nodeColors.selected);
+            mesh.userData.originalColor = CONFIG.nodeColors.selected;
+            
+            // Show info panel
+            const nodeData = mesh.userData.nodeData;
+            document.getElementById('node-name').textContent = nodeData.name || nodeData.id;
+            document.getElementById('node-details').innerHTML = `
+                <strong>ID:</strong> ${nodeData.id}<br>
+                <strong>Downloads:</strong> ${nodeData.downloads?.toLocaleString() || 'N/A'}<br>
+                <strong>Likes:</strong> ${nodeData.likes?.toLocaleString() || 'N/A'}<br>
+                <strong>Pipeline:</strong> ${nodeData.pipeline_tag || 'N/A'}<br>
+                <strong>Library:</strong> ${nodeData.library_name || 'N/A'}<br>
+                <strong>Created:</strong> ${nodeData.createdAt || 'N/A'}<br>
+                <br><em style="font-size: 11px; color: #888;">To visualize this model's family tree, export it from the notebook</em>
+            `;
+            document.getElementById('info-panel').style.display = 'block';
+            document.getElementById('selected-count').textContent = '1';
+        }
+
+        function deselectNode() {
+            if (selectedNode) {
+                selectedNode.material.color.setHex(CONFIG.nodeColors.default);
+                selectedNode.userData.originalColor = CONFIG.nodeColors.default;
+                selectedNode = null;
+            }
+            document.getElementById('info-panel').style.display = 'none';
+            document.getElementById('selected-count').textContent = '0';
+        }
+
+        // UI Controls
+        // Autocomplete functionality
+        let autocompleteSelectedIndex = -1;
+        let autocompleteResults = [];
+        
+        function searchModels(query, limit = 20) {
+            if (!fullGraphData || !query || query.length < 2) {
+                return [];
+            }
+            
+            const queryLower = query.toLowerCase();
+            const results = [];
+            
+            for (const node of fullGraphData.nodes) {
+                const idLower = node.id.toLowerCase();
+                const nameLower = (node.name || '').toLowerCase();
+                
+                // Check if query matches ID or name
+                if (idLower.includes(queryLower) || nameLower.includes(queryLower)) {
+                    results.push({
+                        id: node.id,
+                        name: node.name,
+                        score: idLower.startsWith(queryLower) ? 2 : (nameLower.startsWith(queryLower) ? 1.5 : 1)
+                    });
+                    
+                    if (results.length >= limit * 2) break; // Get more than limit for better sorting
+                }
+            }
+            
+            // Sort by relevance (exact matches first, then by score)
+            results.sort((a, b) => {
+                const aStarts = a.id.toLowerCase().startsWith(queryLower);
+                const bStarts = b.id.toLowerCase().startsWith(queryLower);
+                if (aStarts && !bStarts) return -1;
+                if (!aStarts && bStarts) return 1;
+                return b.score - a.score;
+            });
+            
+            return results.slice(0, limit);
+        }
+        
+        function highlightText(text, query) {
+            if (!query) return text;
+            const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+            return text.replace(regex, '<span class="highlight">$1</span>');
+        }
+        
+        function displayAutocompleteResults(results, query) {
+            const resultsContainer = document.getElementById('autocomplete-results');
+            resultsContainer.innerHTML = '';
+            
+            if (results.length === 0) {
+                resultsContainer.style.display = 'none';
+                return;
+            }
+            
+            // Store results for keyboard navigation
+            autocompleteResults = results;
+            
+            results.forEach((result, index) => {
+                const item = document.createElement('div');
+                item.className = 'autocomplete-item';
+                item.innerHTML = `
+                    <div class="model-id">${highlightText(result.id, query)}</div>
+                    ${result.name && result.name !== result.id.split('/').pop() ? 
+                        `<div class="model-name">${highlightText(result.name, query)}</div>` : ''}
+                `;
+                
+                item.addEventListener('click', () => {
+                    selectAutocompleteResult(result.id);
+                });
+                
+                item.addEventListener('mouseenter', () => {
+                    autocompleteSelectedIndex = index;
+                    updateAutocompleteSelection();
+                });
+                
+                resultsContainer.appendChild(item);
+            });
+            
+            resultsContainer.classList.add('show');
+            autocompleteSelectedIndex = -1;
+        }
+        
+        function updateAutocompleteSelection() {
+            const items = document.querySelectorAll('.autocomplete-item');
+            items.forEach((item, index) => {
+                if (index === autocompleteSelectedIndex) {
+                    item.classList.add('selected');
+                    item.scrollIntoView({ block: 'nearest' });
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+        }
+        
+        function selectAutocompleteResult(modelId) {
+            document.getElementById('search').value = modelId;
+            document.getElementById('autocomplete-results').classList.remove('show');
+            autocompleteSelectedIndex = -1;
+            searchAndLoadComponent(modelId);
+        }
+        
+        function hideAutocomplete() {
+            document.getElementById('autocomplete-results').classList.remove('show');
+            autocompleteSelectedIndex = -1;
+        }
+
+        function setupUIControls() {
+            const searchInput = document.getElementById('search');
+            const searchBtn = document.getElementById('search-btn');
+            
+            // Autocomplete on input
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.trim();
+                
+                if (query.length >= 2 && fullGraphData) {
+                    const results = searchModels(query);
+                    displayAutocompleteResults(results, query);
+                } else {
+                    hideAutocomplete();
+                }
+            });
+            
+            // Search button - load component for searched model
+            searchBtn.addEventListener('click', () => {
+                const modelId = searchInput.value.trim();
+                if (modelId) {
+                    hideAutocomplete();
+                    searchAndLoadComponent(modelId);
+                }
+            });
+            
+            // Keyboard navigation for autocomplete
+            searchInput.addEventListener('keydown', (e) => {
+                const resultsContainer = document.getElementById('autocomplete-results');
+                const items = document.querySelectorAll('.autocomplete-item');
+                
+                if (resultsContainer.classList.contains('show') && items.length > 0) {
+                    if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        autocompleteSelectedIndex = Math.min(autocompleteSelectedIndex + 1, items.length - 1);
+                        updateAutocompleteSelection();
+                    } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        autocompleteSelectedIndex = Math.max(autocompleteSelectedIndex - 1, -1);
+                        updateAutocompleteSelection();
+                    } else if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (autocompleteSelectedIndex >= 0 && items[autocompleteSelectedIndex]) {
+                            const modelId = autocompleteResults[autocompleteSelectedIndex]?.id;
+                            if (modelId) {
+                                selectAutocompleteResult(modelId);
+                            }
+                        } else {
+                            // If no selection, just search for what's typed
+                            const modelId = searchInput.value.trim();
+                            if (modelId) {
+                                hideAutocomplete();
+                                searchAndLoadComponent(modelId);
+                            }
+                        }
+                    } else if (e.key === 'Escape') {
+                        hideAutocomplete();
+                    }
+                } else if (e.key === 'Enter') {
+                    // If autocomplete is hidden, just search
+                    const modelId = searchInput.value.trim();
+                    if (modelId) {
+                        searchAndLoadComponent(modelId);
+                    }
+                }
+            });
+            
+            // Hide autocomplete when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.autocomplete-container')) {
+                    hideAutocomplete();
+                }
+            });
+            
+            // Also allow searching within current component (for highlighting) - but only if autocomplete is hidden
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.trim();
+                const resultsContainer = document.getElementById('autocomplete-results');
+                
+                // Only do highlighting if autocomplete is not showing
+                if (!resultsContainer.classList.contains('show') && nodes.length > 0 && query.length > 0) {
+                    const foundNode = nodeMeshes.find(mesh => {
+                        const name = mesh.userData.nodeData.name?.toLowerCase() || '';
+                        const id = mesh.userData.nodeData.id?.toLowerCase() || '';
+                        return name.includes(query.toLowerCase()) || id.includes(query.toLowerCase());
+                    });
+                    
+                    if (foundNode) {
+                        selectNode(foundNode);
+                        controls.target.copy(foundNode.position);
+                        controls.update();
+                    }
+                }
+            });
+            
+            // Edge type filters
+            ['finetune', 'quantized', 'adapter', 'unknown'].forEach(type => {
+                document.getElementById(`filter-${type}`).addEventListener('change', (e) => {
+                    edgeTypeFilters[type] = e.target.checked;
+                    updateEdgeVisibility();
+                });
+            });
+            
+            // Edge opacity
+            document.getElementById('edge-opacity').addEventListener('input', (e) => {
+                CONFIG.edgeOpacity = parseFloat(e.target.value);
+                document.getElementById('edge-opacity-value').textContent = CONFIG.edgeOpacity.toFixed(1);
+                edgeLines.forEach(line => {
+                    line.material.opacity = CONFIG.edgeOpacity;
+                });
+            });
+        }
+
+        function updateEdgeVisibility() {
+            edgeLines.forEach((line, index) => {
+                const edge = edges[index];
+                line.visible = edgeTypeFilters[edge.type];
+            });
+        }
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Smooth camera movement
+            controls.update();
+            
+            // Update edges (for dynamic layout)
+            updateEdges();
+            
+            renderer.render(scene, camera);
+        }
+
+        // Window resize
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Initialize
+        initScene();
+        loadGraphData();
+    </script>
+</body>
+</html>
