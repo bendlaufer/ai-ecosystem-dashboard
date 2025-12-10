@@ -19,20 +19,18 @@ export default {
       return new Response('File not found', { status: 404 });
     }
 
-    // Get the compressed data
-    const compressedData = await object.arrayBuffer();
-    
-    // Decompress using the built-in DecompressionStream
-    const stream = new DecompressionStream('gzip');
-    const decompressedStream = new Response(compressedData).body.pipeThrough(stream);
-    const decompressedData = await new Response(decompressedStream).arrayBuffer();
+    // Stream the gzipped file directly (don't decompress - let browser handle it)
+    // This avoids Worker timeout/memory issues with large files
+    const body = object.body;
 
-    // Return decompressed JSON with CORS headers
-    return new Response(decompressedData, {
+    // Return gzipped file with CORS headers
+    // Browser will decompress using DecompressionStream API
+    return new Response(body, {
       headers: {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/gzip',
+        'Content-Encoding': 'gzip',
         'Cache-Control': 'public, max-age=3600',
       },
     });
