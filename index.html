@@ -353,11 +353,14 @@
         // CDN Configuration for Full Dataset
         // Using gzip-compressed version (56MB instead of 569MB) - much faster!
         
-        // Option 1: Cloudflare R2 (if public development URL is working)
-        // const CDN_URL = 'https://pub-89cf9135be2346638e77c9edf35edf5a.r2.dev/ai-ecosystem-graph/graph_data.json.gz';
+        // GitHub Releases URL (needs CORS proxy due to CORS restrictions)
+        const GITHUB_RELEASE_URL = 'https://github.com/bendlaufer/ai-ecosystem-dashboard/releases/download/v1.0/graph_data.json.gz';
         
-        // Option 2: GitHub Releases (fallback - upload graph_data.json.gz to releases)
-        const CDN_URL = 'https://github.com/bendlaufer/ai-ecosystem-dashboard/releases/download/v1.0/graph_data.json.gz';
+        // Use CORS proxy for GitHub Releases (57MB compressed file should work with proxy)
+        const CDN_URL = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(GITHUB_RELEASE_URL);
+        
+        // Option 1: Cloudflare R2 (if public development URL is working - no CORS issues)
+        // const CDN_URL = 'https://pub-89cf9135be2346638e77c9edf35edf5a.r2.dev/ai-ecosystem-graph/graph_data.json.gz';
         
         // Global variables
         let scene, camera, renderer, controls;
@@ -446,37 +449,13 @@
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 minute timeout
                 
-                // Try with 'no-cors' first for GitHub Releases (may work despite CORS)
-                // If that fails, we'll try 'cors' mode
-                let response;
-                try {
-                    response = await fetch(dataSource, {
-                        method: 'GET',
-                        mode: 'no-cors', // Try no-cors first for GitHub Releases
-                        cache: 'default',
-                        signal: controller.signal
-                    });
-                    
-                    // If no-cors doesn't give us readable data, try cors
-                    if (!response.ok && dataSource.includes('github.com')) {
-                        console.log('Trying with CORS mode...');
-                        response = await fetch(dataSource, {
-                            method: 'GET',
-                            mode: 'cors',
-                            cache: 'default',
-                            signal: controller.signal
-                        });
-                    }
-                } catch (corsError) {
-                    // If no-cors fails, try with cors mode
-                    console.log('No-cors failed, trying CORS mode...', corsError);
-                    response = await fetch(dataSource, {
-                        method: 'GET',
-                        mode: 'cors',
-                        cache: 'default',
-                        signal: controller.signal
-                    });
-                }
+                // Fetch with CORS (CORS proxy handles CORS for us)
+                const response = await fetch(dataSource, {
+                    method: 'GET',
+                    mode: 'cors',
+                    cache: 'default',
+                    signal: controller.signal
+                });
                 
                 clearTimeout(timeoutId);
                 
