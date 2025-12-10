@@ -346,11 +346,13 @@
         // Example with CORS proxy:
         // const CDN_URL = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://github.com/bendlaufer/ai-ecosystem-dashboard/releases/download/v1.0/graph_data.json');
         //
-        // Direct GitHub Releases URL (may have CORS issues):
-        const CDN_URL = 'https://github.com/bendlaufer/ai-ecosystem-dashboard/releases/download/v1.0/graph_data.json';
+        // Using CORS proxy to access GitHub Releases (works immediately)
+        // This bypasses CORS issues with GitHub Releases
+        const GITHUB_RELEASE_URL = 'https://github.com/bendlaufer/ai-ecosystem-dashboard/releases/download/v1.0/graph_data.json';
+        const CDN_URL = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(GITHUB_RELEASE_URL);
         
-        // Alternative: Use a CORS proxy (uncomment to use)
-        // const CDN_URL = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://github.com/bendlaufer/ai-ecosystem-dashboard/releases/download/v1.0/graph_data.json');
+        // Alternative: Direct GitHub Releases URL (may have CORS issues - uncomment to try)
+        // const CDN_URL = 'https://github.com/bendlaufer/ai-ecosystem-dashboard/releases/download/v1.0/graph_data.json';
         
         // Global variables
         let scene, camera, renderer, controls;
