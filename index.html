@@ -363,9 +363,9 @@
         // CDN Configuration for Full Dataset
         // Using gzip-compressed version (56MB instead of 569MB) - much faster!
         
-        // CDN Configuration - Cloudflare R2 Custom Domain
-        // Using custom domain for reliable, production-ready access
-        const CDN_URL = 'https://data.benlaufer.me/graph_data.json.gz';
+        // CDN Configuration - Cloudflare Worker with CORS
+        // Using Cloudflare Worker to proxy R2 with proper CORS headers
+        const CDN_URL = 'https://ai-ecosystem-graph-proxy.bdl56.workers.dev';
         
         // Fallback: R2 Public Development URL (if custom domain has issues)
         // const CDN_URL = 'https://pub-89cf9135be2346638e77c9edf35edf5a.r2.dev/graph_data.json.gz';
