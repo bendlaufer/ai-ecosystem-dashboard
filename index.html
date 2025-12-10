@@ -435,22 +435,38 @@
             
             try {
                 console.log(`Loading graph data from ${dataSource}...`);
+                document.getElementById('loading').textContent = 'Loading graph data... This may take a few minutes for the full dataset (500MB)...';
+                
+                // Add timeout and better error handling for large files
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 minute timeout
                 
                 // Add mode: 'cors' to handle CORS issues
                 const response = await fetch(dataSource, {
                     method: 'GET',
                     mode: 'cors',
-                    cache: 'default'
+                    cache: 'default',
+                    signal: controller.signal
                 });
                 
+                clearTimeout(timeoutId);
+                
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
                 }
                 
                 // Check if response is actually JSON
                 const contentType = response.headers.get('content-type');
                 if (!contentType || !contentType.includes('application/json')) {
                     console.warn('Response may not be JSON. Content-Type:', contentType);
+                }
+                
+                // Show progress for large files
+                const contentLength = response.headers.get('content-length');
+                if (contentLength) {
+                    const totalSize = parseInt(contentLength);
+                    console.log(`File size: ${(totalSize / 1024 / 1024).toFixed(2)} MB`);
+                    document.getElementById('loading').textContent = `Downloading ${(totalSize / 1024 / 1024).toFixed(2)} MB... This may take a few minutes...`;
                 }
                 
                 fullGraphData = await response.json();
@@ -469,7 +485,31 @@
                 animate();
             } catch (error) {
                 console.error('Error loading graph data:', error);
-                document.getElementById('loading').textContent = `Error loading ${dataSource}. Make sure the file exists.`;
+                
+                let errorMessage = `Error loading ${dataSource}. `;
+                
+                if (error.name === 'AbortError') {
+                    errorMessage += 'Request timed out. The file is very large (500MB) and may take several minutes to load. ';
+                    errorMessage += 'CORS proxies may not handle files this large. Consider using a proper CDN (see CDN_SETUP.md).';
+                } else if (error.message.includes('404') || error.message.includes('not found')) {
+                    errorMessage += 'File not found. Make sure the GitHub Release v1.0 exists and contains graph_data.json.';
+                } else if (error.message.includes('CORS') || error.message.includes('Failed to fetch')) {
+                    errorMessage += 'CORS or network error. The CORS proxy may be having issues with the large file size. ';
+                    errorMessage += 'For 500MB files, consider using Cloudflare R2 or AWS S3 (see CDN_SETUP.md).';
+                } else {
+                    errorMessage += `Error: ${error.message}. `;
+                    errorMessage += 'For the full dataset (500MB), CORS proxies may timeout. Consider using a proper CDN.';
+                }
+                
+                document.getElementById('loading').textContent = errorMessage;
+                document.getElementById('loading').style.display = 'block';
+                
+                // Log full error for debugging
+                console.error('Full error details:', {
+                    name: error.name,
+                    message: error.message,
+                    stack: error.stack
+                });
             }
         }
         
