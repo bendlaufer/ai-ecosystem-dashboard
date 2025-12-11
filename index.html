@@ -1033,10 +1033,16 @@
                 const edgeType = line.userData.edgeType || 'unknown';
                 let visible = false;
                 
-                if (edgeType === 'finetune' && showFinetune) visible = true;
-                else if (edgeType === 'quantized' && showQuantized) visible = true;
-                else if (edgeType === 'adapter' && showAdapter) visible = true;
-                else if (showUnknown) visible = true;
+                // Check if edge type matches any enabled filter
+                if (edgeType === 'finetune' && showFinetune) {
+                    visible = true;
+                } else if (edgeType === 'quantized' && showQuantized) {
+                    visible = true;
+                } else if (edgeType === 'adapter' && showAdapter) {
+                    visible = true;
+                } else if (edgeType === 'unknown' && showUnknown) {
+                    visible = true;
+                }
                 
                 line.visible = visible;
             });
