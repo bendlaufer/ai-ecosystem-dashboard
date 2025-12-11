@@ -489,7 +489,8 @@
                 }
             } catch (error) {
                 console.error('Error loading default component:', error);
-                document.getElementById('loading').textContent = `Error loading component: ${error.message}`;
+                document.getElementById('loading-text').textContent = `Error loading component: ${error.message}`;
+                document.getElementById('loading-bar-container').style.display = 'none';
                 document.getElementById('loading').style.display = 'block';
             }
         }
@@ -993,7 +994,8 @@
             // Always use server-side lookup API
             
             document.getElementById('loading').style.display = 'block';
-            document.getElementById('loading').textContent = `Loading component for ${nodeId}...`;
+            document.getElementById('loading-text').textContent = `Loading component for ${nodeId}...`;
+            document.getElementById('loading-bar-container').style.display = 'none';
             
             try {
                 graphData = await loadComponentForModel(nodeId);
