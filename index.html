@@ -249,11 +249,8 @@
             
             <div class="control-group">
                 <label for="search">Enter Model ID:</label>
-                <div class="autocomplete-container">
-                    <input type="text" id="search" placeholder="Type to search... (e.g., zera09/SmolVLM)">
-                    <div id="autocomplete-results"></div>
-                </div>
-                <button id="search-btn" style="margin-top: 5px;">Search & Load Component</button>
+                <input type="text" id="search" placeholder="Enter model ID (e.g., zera09/SmolVLM)">
+                <button id="search-btn" style="margin-top: 5px;">Load Component</button>
             </div>
             
             <div class="control-group">
@@ -874,49 +871,18 @@
         
         // Setup UI controls
         function setupUIControls() {
-            
             // Search functionality
             const searchInput = document.getElementById('search');
             const searchBtn = document.getElementById('search-btn');
-            const autocompleteResults = document.getElementById('autocomplete-results');
             
-            let searchTimeout;
-            searchInput.addEventListener('input', () => {
-                clearTimeout(searchTimeout);
-                const query = searchInput.value.toLowerCase().trim();
-                
-                if (query.length < 2) {
-                    autocompleteResults.style.display = 'none';
-                    return;
-                }
-                
-                searchTimeout = setTimeout(async () => {
-                    // Search using server-side API (no client-side index needed)
-                    const matches = await searchModels(query, 10);
-                    
-                    if (matches.length > 0) {
-                        autocompleteResults.innerHTML = matches.map(node => `
-                            <div class="autocomplete-item" data-id="${node.id}">
-                                <div class="model-id">${highlightMatch(node.id, query)}</div>
-                                <div class="model-name">${node.name || ''}</div>
-                            </div>
-                        `).join('');
-                        
-                        autocompleteResults.style.display = 'block';
-                        
-                        // Add click handlers
-                        autocompleteResults.querySelectorAll('.autocomplete-item').forEach(item => {
-                            item.addEventListener('click', () => {
-                                const nodeId = item.dataset.id;
-                                searchInput.value = nodeId;
-                                autocompleteResults.style.display = 'none';
-                                loadComponent(nodeId);
-                            });
-                        });
-                    } else {
-                        autocompleteResults.style.display = 'none';
+            // Allow Enter key to trigger search
+            searchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    const query = searchInput.value.trim();
+                    if (query) {
+                        loadComponent(query);
                     }
-                }, 300);
+                }
             });
             
             searchBtn.addEventListener('click', () => {
