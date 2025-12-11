@@ -234,28 +234,6 @@
             font-weight: 600;
         }
         
-        .data-source-selector {
-            margin-bottom: 15px;
-            padding: 10px;
-            background: #f8f9fa;
-            border-radius: 5px;
-        }
-        
-        .data-source-selector label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #555;
-            font-size: 14px;
-        }
-        
-        .data-source-selector select {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 14px;
-        }
     </style>
 </head>
 <body>
@@ -524,38 +502,6 @@
             
             const componentData = await loadComponentById(componentId);
             return componentData;
-        }
-        
-        // Load mini dataset (local file, fast)
-        async function loadMiniDataset() {
-            try {
-                console.log('Loading mini dataset...');
-                document.getElementById('loading').textContent = 'Loading mini dataset...';
-                
-                const response = await fetch('graph_data_mini.json');
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                graphData = await response.json();
-                console.log('Mini dataset loaded:', graphData.nodes.length, 'nodes,', graphData.edges.length, 'edges');
-                
-                document.getElementById('component-info').textContent = 
-                    `Mini Sample: ${graphData.nodes.length} nodes, ${graphData.edges.length} edges (zera09/SmolVLM component)`;
-                createGraph();
-                // Restart animation for new graph - ensure it starts
-                if (animationId === null && nodes.length > 0) {
-                    animate();
-                }
-                // Force initial render
-                controls.update();
-                renderer.render(scene, camera);
-                document.getElementById('loading').style.display = 'none';
-            } catch (error) {
-                console.error('Error loading mini dataset:', error);
-                document.getElementById('loading').textContent = `Error loading mini dataset: ${error.message}`;
-                document.getElementById('loading').style.display = 'block';
-            }
         }
         
         // Initial load: Load component 192 (zera09/SmolVLM) by default
@@ -927,26 +873,6 @@
         
         // Setup UI controls
         function setupUIControls() {
-            // Data source selector - toggle between mini and full dataset
-            const dataSourceSelect = document.getElementById('data-source');
-            if (dataSourceSelect) {
-                dataSourceSelect.addEventListener('change', async (e) => {
-                    const wasFull = useFullDataset;
-                    useFullDataset = e.target.value === 'full';
-                    
-                    if (useFullDataset && !wasFull) {
-                        // Switching to full dataset - show message
-                        document.getElementById('loading').style.display = 'block';
-                        document.getElementById('loading').textContent = 'Switched to full dataset mode. You can now search all models.';
-                        setTimeout(() => {
-                            document.getElementById('loading').style.display = 'none';
-                        }, 2000);
-                    } else if (!useFullDataset && wasFull) {
-                        // Switching back to mini - reload mini dataset
-                        await loadMiniDataset();
-                    }
-                });
-            }
             
             // Search functionality
             const searchInput = document.getElementById('search');
