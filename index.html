@@ -225,6 +225,7 @@
                 <label for="search">Enter Model ID:</label>
                 <input type="text" id="search" placeholder="Enter model ID (e.g., zera09/SmolVLM)">
                 <button id="search-btn" style="margin-top: 5px;">Load Component</button>
+                <button id="random-btn" style="margin-top: 5px; background: #764ba2;">Random Component</button>
             </div>
             
             <div class="control-group">
@@ -904,6 +905,12 @@
                 }
             });
             
+            // Random component button
+            const randomBtn = document.getElementById('random-btn');
+            randomBtn.addEventListener('click', () => {
+                loadRandomComponent();
+            });
+            
             // Edge opacity
             document.getElementById('edge-opacity').addEventListener('input', (e) => {
                 const opacity = parseFloat(e.target.value);
@@ -917,6 +924,73 @@
             ['filter-finetune', 'filter-quantized', 'filter-adapter', 'filter-unknown'].forEach(filterId => {
                 document.getElementById(filterId).addEventListener('change', updateEdgeVisibility);
             });
+        }
+        
+        // Get a random component ID with preference for components 1-500
+        function getRandomComponentId() {
+            // 70% chance to pick from 1-500, 30% chance to pick from 501-10000
+            if (Math.random() < 0.7) {
+                return Math.floor(Math.random() * 500) + 1; // 1-500
+            } else {
+                return Math.floor(Math.random() * 9500) + 501; // 501-10000
+            }
+        }
+        
+        // Load a random component that meets size constraints
+        async function loadRandomComponent() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('loading-text').textContent = 'Finding random component...';
+            document.getElementById('loading-bar-container').style.display = 'none';
+            
+            const maxAttempts = 100; // Prevent infinite loops
+            let attempts = 0;
+            let componentId = getRandomComponentId();
+            
+            while (attempts < maxAttempts) {
+                try {
+                    // Try to load the component
+                    const componentData = await loadComponentById(componentId);
+                    const nodeCount = componentData.nodes.length;
+                    
+                    // Check if component size is valid (3 <= nodes <= 1200)
+                    if (nodeCount >= 3 && nodeCount <= 1200) {
+                        // Valid component found!
+                        graphData = componentData;
+                        
+                        document.getElementById('component-info').textContent = 
+                            `${nodeCount} nodes, ${componentData.edges.length} edges (Component ${componentId})`;
+                        
+                        createGraph();
+                        // Restart animation for new graph - ensure it starts
+                        if (animationId === null && nodes.length > 0) {
+                            animate();
+                        }
+                        // Force initial render
+                        controls.update();
+                        renderer.render(scene, camera);
+                        document.getElementById('loading').style.display = 'none';
+                        return;
+                    } else {
+                        // Component size is invalid, try next one
+                        componentId++;
+                        attempts++;
+                        if (componentId > 10000) {
+                            componentId = 1; // Wrap around to start
+                        }
+                    }
+                } catch (error) {
+                    // Component doesn't exist, try next one
+                    componentId++;
+                    attempts++;
+                    if (componentId > 10000) {
+                        componentId = 1; // Wrap around to start
+                    }
+                }
+            }
+            
+            // If we couldn't find a valid component after max attempts
+            document.getElementById('loading').style.display = 'none';
+            alert('Could not find a random component meeting size requirements (3-1200 nodes). Please try again.');
         }
         
         // Load component for a given model ID (async, loads from R2)
