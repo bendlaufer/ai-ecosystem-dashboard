@@ -556,8 +556,14 @@
                 document.getElementById('component-info').textContent = 
                     `Mini Sample: ${graphData.nodes.length} nodes, ${graphData.edges.length} edges (zera09/SmolVLM component)`;
                 createGraph();
+                // Restart animation for new graph - ensure it starts
+                if (animationId === null && nodes.length > 0) {
+                    animate();
+                }
+                // Force initial render
+                controls.update();
+                renderer.render(scene, camera);
                 document.getElementById('loading').style.display = 'none';
-                animate();
             } catch (error) {
                 console.error('Error loading mini dataset:', error);
                 document.getElementById('loading').textContent = `Error loading mini dataset: ${error.message}`;
@@ -1021,8 +1027,13 @@
                 document.getElementById('component-info').textContent = 
                     `Mini Sample: ${graphData.nodes.length} nodes, ${graphData.edges.length} edges`;
                 createGraph();
-                // Restart animation for new graph
-                animate();
+                // Restart animation for new graph - ensure it starts
+                if (animationId === null && nodes.length > 0) {
+                    animate();
+                }
+                // Force initial render
+                controls.update();
+                renderer.render(scene, camera);
                 return;
             }
             
@@ -1038,8 +1049,13 @@
                     `Component: ${graphData.nodes.length} nodes, ${graphData.edges.length} edges (${nodeId})`;
                 
                 createGraph();
-                // Restart animation for new graph
-                animate();
+                // Restart animation for new graph - ensure it starts
+                if (animationId === null && nodes.length > 0) {
+                    animate();
+                }
+                // Force initial render
+                controls.update();
+                renderer.render(scene, camera);
                 document.getElementById('loading').style.display = 'none';
             } catch (error) {
                 alert(`Model "${nodeId}" not found: ${error.message}`);
