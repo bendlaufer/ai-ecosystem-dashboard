@@ -409,58 +409,11 @@
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             camera.position.set(0, 0, CONFIG.cameraDistance);
             
-            // Create renderer with error handling and fallback options
-            const container = document.getElementById('canvas-container');
-            // Remove existing canvas if present
-            while (container.firstChild) {
-                container.removeChild(container.firstChild);
-            }
-            
-            // First, test if WebGL is actually available
-            const testCanvas = document.createElement('canvas');
-            const testGl = testCanvas.getContext('webgl') || testCanvas.getContext('experimental-webgl') || testCanvas.getContext('webgl2');
-            if (!testGl) {
-                alert('WebGL is not supported or is disabled in your browser. Please enable WebGL in your browser settings or try a different browser like Chrome, Firefox, or Safari.');
-                return;
-            }
-            
-            // Try creating renderer with different configurations
-            let rendererCreated = false;
-            const rendererConfigs = [
-                { antialias: true, powerPreference: "high-performance", preserveDrawingBuffer: false },
-                { antialias: false, powerPreference: "high-performance", preserveDrawingBuffer: false },
-                { antialias: false, preserveDrawingBuffer: false },
-                {} // Minimal config
-            ];
-            
-            for (const config of rendererConfigs) {
-                try {
-                    renderer = new THREE.WebGLRenderer(config);
-                    rendererCreated = true;
-                    console.log('WebGL renderer created successfully with config:', config);
-                    break;
-                } catch (error) {
-                    console.warn('Failed to create renderer with config:', config, error);
-                    continue;
-                }
-            }
-            
-            if (!rendererCreated) {
-                console.error('All renderer creation attempts failed');
-                alert('Failed to create WebGL renderer. This may be due to:\n- WebGL being disabled in browser settings\n- GPU driver issues\n- Browser compatibility\n\nPlease try refreshing the page or using a different browser.');
-                return;
-            }
-            
-            // Configure renderer
-            try {
-                renderer.setSize(window.innerWidth, window.innerHeight);
-                renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); // Cap pixel ratio for performance
-                container.appendChild(renderer.domElement);
-            } catch (error) {
-                console.error('Failed to configure renderer:', error);
-                alert('Failed to configure WebGL renderer. Please refresh the page.');
-                return;
-            }
+            // Create renderer (simple, no complex error handling)
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
             
             // Add lights
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -683,10 +636,7 @@
             edges = [];
             nodeMap.clear();
             
-            // Reset layout state
-            layoutStableCount = 0;
-            layoutPaused = false;
-            lastLayoutUpdate = 0;
+            // Reset state
             
             // Force garbage collection hint (if available)
             if (window.gc) {
@@ -800,15 +750,13 @@
             }
         }
         
-        // Simple force-directed layout (returns true if layout is stable)
+        // Simple force-directed layout
         function updateLayout() {
-            if (nodes.length === 0) return true;
+            if (nodes.length === 0) return;
             
             const k = Math.sqrt((nodes.length * 100) / nodes.length);
             const repulsion = 0.1;
             const attraction = 0.01;
-            
-            let maxVelocity = 0;
             
             // Reset forces
             nodes.forEach(node => {
@@ -855,11 +803,9 @@
                 }
             });
             
-            // Update positions and track max velocity
+            // Update positions
             nodes.forEach(node => {
                 node.mesh.position.add(node.velocity);
-                const vel = node.velocity.length();
-                if (vel > maxVelocity) maxVelocity = vel;
             });
             
             // Update edge positions
@@ -875,44 +821,13 @@
                     ]);
                 }
             });
-            
-            // Return true if layout is stable (low velocity)
-            return maxVelocity < 0.01;
         }
         
-        // Animation loop with throttled force simulation
-        let lastLayoutUpdate = 0;
-        const LAYOUT_UPDATE_INTERVAL = 100; // Update layout every 100ms instead of every frame (60fps -> 10fps)
-        let layoutStableCount = 0;
-        const STABLE_THRESHOLD = 20; // Stop layout after 20 stable checks
-        let layoutPaused = false;
-        
+        // Animation loop
         function animate() {
             animationId = requestAnimationFrame(animate);
             
-            // Only update layout if not paused
-            if (!layoutPaused) {
-                const now = Date.now();
-                const shouldUpdateLayout = (now - lastLayoutUpdate) >= LAYOUT_UPDATE_INTERVAL;
-                
-                if (shouldUpdateLayout) {
-                    const wasStable = updateLayout(); // Returns true if layout is stable
-                    lastLayoutUpdate = now;
-                    
-                    if (wasStable) {
-                        layoutStableCount++;
-                        // Pause layout updates after it's been stable
-                        if (layoutStableCount > STABLE_THRESHOLD) {
-                            layoutPaused = true;
-                            console.log('Layout stabilized, pausing force simulation');
-                        }
-                    } else {
-                        layoutStableCount = 0; // Reset if not stable
-                    }
-                }
-            }
-            
-            // Always update controls and render (smooth camera movement)
+            updateLayout();
             controls.update();
             renderer.render(scene, camera);
         }
