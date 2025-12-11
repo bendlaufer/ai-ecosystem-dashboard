@@ -646,66 +646,84 @@
         }
         
         // Simple force-directed layout
-        function updateLayout() {
+        function updateLayout(iterations = 1) {
             if (nodes.length === 0) return;
             
-            const k = Math.sqrt((nodes.length * 100) / nodes.length);
-            const repulsion = 0.1;
-            const attraction = 0.01;
+            const nodeCount = nodes.length;
+            const isLargeGraph = nodeCount > 1000;
             
-            // Reset forces (reset velocities for fresh start)
-            nodes.forEach(node => {
-                // Reset velocity to zero for new graphs, otherwise apply damping
-                if (!node.velocity) {
-                    node.velocity = new THREE.Vector3();
+            // Adaptive force parameters based on graph size
+            // For large graphs, use smaller forces and higher damping for stability
+            const baseRepulsion = isLargeGraph ? 0.05 : 0.1;
+            const baseAttraction = isLargeGraph ? 0.005 : 0.01;
+            const damping = isLargeGraph ? 0.85 : 0.9; // Higher damping for large graphs
+            
+            // Scale forces inversely with graph size to prevent explosion
+            const repulsion = baseRepulsion / Math.sqrt(nodeCount / 100);
+            const attraction = baseAttraction;
+            const k = Math.sqrt((nodeCount * 100) / nodeCount);
+            
+            let maxVelocity = 0;
+            
+            // Run multiple iterations for large graphs to converge faster
+            for (let iter = 0; iter < iterations; iter++) {
+                // Reset forces and apply damping
+                nodes.forEach(node => {
+                    if (!node.velocity) {
+                        node.velocity = new THREE.Vector3();
+                    }
+                    node.velocity.multiplyScalar(damping);
+                });
+                
+                // Repulsion between all nodes
+                // For very large graphs, we could optimize this, but let's try adaptive forces first
+                for (let i = 0; i < nodes.length; i++) {
+                    for (let j = i + 1; j < nodes.length; j++) {
+                        const nodeA = nodes[i];
+                        const nodeB = nodes[j];
+                        const distance = nodeA.mesh.position.distanceTo(nodeB.mesh.position);
+                        
+                        if (distance > 0) {
+                            // Use a softer repulsion that doesn't explode at small distances
+                            const force = repulsion / (distance * distance + 1);
+                            const direction = new THREE.Vector3()
+                                .subVectors(nodeA.mesh.position, nodeB.mesh.position)
+                                .normalize()
+                                .multiplyScalar(force);
+                            
+                            nodeA.velocity.add(direction);
+                            nodeB.velocity.sub(direction);
+                        }
+                    }
                 }
-                node.velocity.multiplyScalar(0.9); // Damping
-            });
-            
-            // Repulsion between all nodes
-            for (let i = 0; i < nodes.length; i++) {
-                for (let j = i + 1; j < nodes.length; j++) {
-                    const nodeA = nodes[i];
-                    const nodeB = nodes[j];
-                    const distance = nodeA.mesh.position.distanceTo(nodeB.mesh.position);
+                
+                // Attraction along edges
+                graphData.edges.forEach(edge => {
+                    const sourceNode = nodes.find(n => n.nodeData.id === edge.source);
+                    const targetNode = nodes.find(n => n.nodeData.id === edge.target);
                     
+                    if (!sourceNode || !targetNode) return;
+                    
+                    const distance = sourceNode.mesh.position.distanceTo(targetNode.mesh.position);
                     if (distance > 0) {
-                        const force = repulsion / (distance * distance);
+                        const force = (distance - k) * attraction;
                         const direction = new THREE.Vector3()
-                            .subVectors(nodeA.mesh.position, nodeB.mesh.position)
+                            .subVectors(targetNode.mesh.position, sourceNode.mesh.position)
                             .normalize()
                             .multiplyScalar(force);
                         
-                        nodeA.velocity.add(direction);
-                        nodeB.velocity.sub(direction);
+                        sourceNode.velocity.add(direction);
+                        targetNode.velocity.sub(direction);
                     }
-                }
+                });
+                
+                // Update positions and track max velocity
+                nodes.forEach(node => {
+                    node.mesh.position.add(node.velocity);
+                    const vel = node.velocity.length();
+                    if (vel > maxVelocity) maxVelocity = vel;
+                });
             }
-            
-            // Attraction along edges
-            graphData.edges.forEach(edge => {
-                const sourceNode = nodes.find(n => n.nodeData.id === edge.source);
-                const targetNode = nodes.find(n => n.nodeData.id === edge.target);
-                
-                if (!sourceNode || !targetNode) return;
-                
-                const distance = sourceNode.mesh.position.distanceTo(targetNode.mesh.position);
-                if (distance > 0) {
-                    const force = (distance - k) * attraction;
-                    const direction = new THREE.Vector3()
-                        .subVectors(targetNode.mesh.position, sourceNode.mesh.position)
-                        .normalize()
-                        .multiplyScalar(force);
-                    
-                    sourceNode.velocity.add(direction);
-                    targetNode.velocity.sub(direction);
-                }
-            });
-            
-            // Update positions
-            nodes.forEach(node => {
-                node.mesh.position.add(node.velocity);
-            });
             
             // Update edge positions
             edgeLines.forEach(line => {
@@ -720,6 +738,60 @@
                     ]);
                 }
             });
+            
+            return maxVelocity;
+        }
+        
+        // Pre-compute layout for large graphs
+        async function precomputeLayout(maxIterations = 500, stabilityThreshold = 0.01) {
+            if (nodes.length === 0) return;
+            
+            const isLargeGraph = nodes.length > 1000;
+            if (!isLargeGraph) return; // Only pre-compute for large graphs
+            
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('loading').textContent = `Computing layout for ${nodes.length} nodes...`;
+            
+            // Use requestAnimationFrame to avoid blocking the UI
+            return new Promise((resolve) => {
+                let iterations = 0;
+                let stableCount = 0;
+                const requiredStableIterations = 10; // Consider stable after 10 low-velocity iterations
+                
+                function computeStep() {
+                    const maxVelocity = updateLayout(isLargeGraph ? 5 : 1); // Multiple iterations per frame for large graphs
+                    iterations++;
+                    
+                    // Check if layout is stable (low velocities)
+                    if (maxVelocity < stabilityThreshold) {
+                        stableCount++;
+                        if (stableCount >= requiredStableIterations) {
+                            document.getElementById('loading').style.display = 'none';
+                            resolve();
+                            return;
+                        }
+                    } else {
+                        stableCount = 0; // Reset if not stable
+                    }
+                    
+                    // Stop after max iterations even if not fully stable
+                    if (iterations >= maxIterations) {
+                        document.getElementById('loading').style.display = 'none';
+                        resolve();
+                        return;
+                    }
+                    
+                    // Update progress for very large graphs
+                    if (iterations % 50 === 0 && nodes.length > 5000) {
+                        const progress = Math.min(100, Math.round((iterations / maxIterations) * 100));
+                        document.getElementById('loading').textContent = `Computing layout... ${progress}%`;
+                    }
+                    
+                    requestAnimationFrame(computeStep);
+                }
+                
+                computeStep();
+            });
         }
         
         // Animation loop
@@ -732,7 +804,19 @@
             
             animationId = requestAnimationFrame(animate);
             
-            updateLayout();
+            // For large graphs that were pre-computed, use minimal animation
+            // For smaller graphs, normal animation
+            const isLargeGraph = nodes.length > 1000;
+            const maxVelocity = updateLayout(isLargeGraph ? 1 : 1);
+            
+            // Stop animation if layout is stable (for large graphs)
+            if (isLargeGraph && maxVelocity < 0.01) {
+                // Still update edges and render, but don't continue animating
+                controls.update();
+                renderer.render(scene, camera);
+                return; // Don't continue animation loop
+            }
+            
             controls.update();
             renderer.render(scene, camera);
         }
