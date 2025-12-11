@@ -56,52 +56,24 @@ export default {
     }
     
     // Handle search API: /search?q=query (returns matching model IDs)
+    // Note: This endpoint is disabled - search is too slow with full index
+    // Use chunked lookup instead for exact model ID searches
     if (pathname === '/search') {
       const query = searchParams.get('q') || '';
       const limit = parseInt(searchParams.get('limit') || '10');
       
-      if (query.length < 2) {
-        return new Response(JSON.stringify({ matches: [] }), {
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
-        });
-      }
-      
-      try {
-        const cache = caches.default;
-        const index = await getComponentIndex(cache);
-        const queryLower = query.toLowerCase();
-        
-        // Search through model IDs
-        const matches = [];
-        for (const modelId of Object.keys(index)) {
-          if (modelId.toLowerCase().includes(queryLower)) {
-            matches.push({
-              id: modelId,
-              name: modelId.split('/').pop()
-            });
-            if (matches.length >= limit) break;
-          }
-        }
-        
-        return new Response(JSON.stringify({ matches }), {
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Cache-Control': 'public, max-age=300',
-          },
-        });
-      } catch (error) {
-        return new Response(JSON.stringify({ error: error.message, matches: [] }), {
-          status: 500,
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
-        });
-      }
+      // Return empty results with CORS headers
+      // Full index search is too slow - use exact model ID lookup instead
+      return new Response(JSON.stringify({ 
+        matches: [],
+        message: 'Search disabled - please enter exact model ID for lookup'
+      }), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'public, max-age=300',
+        },
+      });
     }
     
     // Handle lookup API: /lookup?model_id=xxx (returns component_id)

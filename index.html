@@ -447,46 +447,25 @@
             loadGraphData();
         }
         
-        // Search models - uses server-side API for full dataset, local search for mini
-        async function searchModels(query, limit = 10) {
-            if (!useFullDataset) {
-                // Search in mini dataset (client-side, fast)
-                if (!graphData || !graphData.nodes) return [];
-                
-                const queryLower = query.toLowerCase();
-                const matches = [];
-                
-                for (const node of graphData.nodes) {
-                    if (node.id && node.id.toLowerCase().includes(queryLower)) {
-                        matches.push({
-                            id: node.id,
-                            name: node.id.split('/').pop()
-                        });
-                        if (matches.length >= limit) break;
-                    }
-                }
-                
-                return matches;
-            } else {
-                // Search in full dataset (server-side API)
-                try {
-                    const response = await fetch(`${CDN_URL}/search?q=${encodeURIComponent(query)}&limit=${limit}`, {
-                        method: 'GET',
-                        mode: 'cors'
+        // Search models - local search only (server-side search disabled due to performance)
+        function searchModels(query, limit = 10) {
+            // Always search locally in loaded data (mini dataset)
+            if (!graphData || !graphData.nodes) return [];
+            
+            const queryLower = query.toLowerCase();
+            const matches = [];
+            
+            for (const node of graphData.nodes) {
+                if (node.id && node.id.toLowerCase().includes(queryLower)) {
+                    matches.push({
+                        id: node.id,
+                        name: node.id.split('/').pop()
                     });
-                    
-                    if (!response.ok) {
-                        console.warn('Search API failed, returning empty results');
-                        return [];
-                    }
-                    
-                    const data = await response.json();
-                    return data.matches || data.results || [];
-                } catch (error) {
-                    console.error('Error searching models:', error);
-                    return [];
+                    if (matches.length >= limit) break;
                 }
             }
+            
+            return matches;
         }
         
         // Look up component_id for a model using server-side API (no client-side index needed)
