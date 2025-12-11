@@ -208,7 +208,12 @@
 <body>
     <div id="container">
         <div id="canvas-container"></div>
-        <div class="loading" id="loading">Loading graph data...</div>
+        <div class="loading" id="loading" style="display: none;">
+            <div id="loading-text">Loading graph data...</div>
+            <div class="loading-bar-container" id="loading-bar-container" style="display: none;">
+                <div class="loading-bar" id="loading-bar"></div>
+            </div>
+        </div>
         
         <div id="controls">
             <h2>AI Ecosystem Dashboard</h2>
@@ -406,7 +411,8 @@
         async function loadComponentById(componentId) {
             try {
                 console.log(`Loading component ${componentId}...`);
-                document.getElementById('loading').textContent = `Loading component ${componentId}...`;
+                document.getElementById('loading-text').textContent = `Loading component ${componentId}...`;
+                document.getElementById('loading-bar-container').style.display = 'none';
                 
                 const componentUrl = `${CDN_URL}/component_${componentId}.json.gz`;
                 const response = await fetch(componentUrl, {
@@ -454,7 +460,8 @@
         async function loadGraphData() {
             // Always start with component 192 (contains zera09/SmolVLM)
             document.getElementById('loading').style.display = 'block';
-            document.getElementById('loading').textContent = 'Loading component 192 (zera09/SmolVLM)...';
+            document.getElementById('loading-text').textContent = 'Loading component 192 (zera09/SmolVLM)...';
+            document.getElementById('loading-bar-container').style.display = 'none';
             
             try {
                 graphData = await loadComponentById(192);
