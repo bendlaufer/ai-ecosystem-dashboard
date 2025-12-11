@@ -461,7 +461,7 @@
                 }
                 
                 const data = await response.json();
-                return data.results || [];
+                return data.matches || data.results || [];
             } catch (error) {
                 console.error('Error searching models:', error);
                 return [];
