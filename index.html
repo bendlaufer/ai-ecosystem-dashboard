@@ -677,16 +677,38 @@
             
             const nodeCount = nodes.length;
             const isLargeGraph = nodeCount > 1200;
+            const isVeryLargeGraph = nodeCount > 10000;
             
             // Adaptive force parameters based on graph size
             // For large graphs (>1200 nodes), use smaller forces and higher damping for stability
-            const baseRepulsion = isLargeGraph ? 0.02 : 0.1;
-            const baseAttraction = isLargeGraph ? 0.002 : 0.01;
-            const damping = isLargeGraph ? 0.8 : 0.9; // Higher damping for large graphs
+            // For very large graphs (>10,000 nodes), use even more conservative parameters
+            let baseRepulsion, baseAttraction, damping;
+            if (isVeryLargeGraph) {
+                // Very conservative parameters for >10,000 nodes
+                baseRepulsion = 0.005;
+                baseAttraction = 0.0005;
+                damping = 0.75; // Very high damping
+            } else if (isLargeGraph) {
+                // Moderate parameters for >1200 nodes
+                baseRepulsion = 0.02;
+                baseAttraction = 0.002;
+                damping = 0.8;
+            } else {
+                // Normal parameters for smaller graphs
+                baseRepulsion = 0.1;
+                baseAttraction = 0.01;
+                damping = 0.9;
+            }
             
             // Scale repulsion inversely with graph size to prevent explosion
             // For large graphs, scale more aggressively
-            const repulsionScale = isLargeGraph ? Math.sqrt(nodeCount / 100) : 1;
+            let repulsionScale = 1;
+            if (isVeryLargeGraph) {
+                // Very aggressive scaling for very large graphs
+                repulsionScale = Math.sqrt(nodeCount / 50);
+            } else if (isLargeGraph) {
+                repulsionScale = Math.sqrt(nodeCount / 100);
+            }
             const repulsion = baseRepulsion / repulsionScale;
             const attraction = baseAttraction;
             const k = Math.sqrt((nodeCount * 100) / nodeCount);
@@ -713,7 +735,9 @@
                         
                         if (distance > 0) {
                             // Use a softer repulsion that doesn't explode at small distances
-                            const force = repulsion / (distance * distance + 1);
+                            // For very large graphs, add even more smoothing
+                            const smoothing = isVeryLargeGraph ? 5 : 1;
+                            const force = repulsion / (distance * distance + smoothing);
                             const direction = new THREE.Vector3()
                                 .subVectors(nodeA.mesh.position, nodeB.mesh.position)
                                 .normalize()
