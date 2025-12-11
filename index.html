@@ -657,6 +657,8 @@
                 edgeLines.push(line);
             });
             
+            // Apply edge visibility filters after creating edges
+            updateEdgeVisibility();
             
             // Center camera on graph
             if (nodes.length > 0) {
