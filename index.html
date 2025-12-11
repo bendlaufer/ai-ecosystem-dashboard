@@ -986,6 +986,8 @@
                 document.getElementById('component-info').textContent = 
                     `Mini Sample: ${graphData.nodes.length} nodes, ${graphData.edges.length} edges`;
                 createGraph();
+                // Restart animation for new graph
+                animate();
                 return;
             }
             
