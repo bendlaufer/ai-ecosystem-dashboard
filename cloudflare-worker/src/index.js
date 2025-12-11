@@ -100,12 +100,18 @@ export default {
         const normalizedPrefix = /^[a-z0-9]/.test(prefix[0]) ? prefix : '00';
         
         // Load only the relevant chunk
-        const chunkKey = `components/chunks/lookup_${normalizedPrefix}.json.gz`;
+        // Note: chunks were uploaded without 'components/' prefix
+        const chunkKey = `chunks/lookup_${normalizedPrefix}.json.gz`;
         const chunkObject = await env.AI_ECOSYSTEM_GRAPH.get(chunkKey);
         
         if (!chunkObject) {
-          // Chunk not found - model doesn't exist
-          return new Response(JSON.stringify({ error: 'Model not found', component_id: null }), {
+          // Chunk not found - log for debugging
+          console.error(`Chunk not found: ${chunkKey} for model: ${modelId}`);
+          return new Response(JSON.stringify({ 
+            error: 'Model not found', 
+            component_id: null,
+            debug: `Chunk ${chunkKey} not found in R2`
+          }), {
             status: 404,
             headers: {
               'Content-Type': 'application/json',
