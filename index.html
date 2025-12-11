@@ -416,33 +416,39 @@
                 container.removeChild(container.firstChild);
             }
             
-            try {
-                // Try creating renderer with optimal settings first
-                renderer = new THREE.WebGLRenderer({ 
-                    antialias: true,
-                    powerPreference: "high-performance",
-                    preserveDrawingBuffer: false
-                });
-            } catch (error) {
-                console.warn('Failed to create renderer with optimal settings, trying fallback:', error);
+            // First, test if WebGL is actually available
+            const testCanvas = document.createElement('canvas');
+            const testGl = testCanvas.getContext('webgl') || testCanvas.getContext('experimental-webgl') || testCanvas.getContext('webgl2');
+            if (!testGl) {
+                alert('WebGL is not supported or is disabled in your browser. Please enable WebGL in your browser settings or try a different browser like Chrome, Firefox, or Safari.');
+                return;
+            }
+            
+            // Try creating renderer with different configurations
+            let rendererCreated = false;
+            const rendererConfigs = [
+                { antialias: true, powerPreference: "high-performance", preserveDrawingBuffer: false },
+                { antialias: false, powerPreference: "high-performance", preserveDrawingBuffer: false },
+                { antialias: false, preserveDrawingBuffer: false },
+                {} // Minimal config
+            ];
+            
+            for (const config of rendererConfigs) {
                 try {
-                    // Fallback: simpler settings
-                    renderer = new THREE.WebGLRenderer({ 
-                        antialias: false,
-                        preserveDrawingBuffer: false
-                    });
-                } catch (error2) {
-                    console.error('Failed to create WebGL renderer:', error2);
-                    // Check if WebGL is actually supported
-                    const canvas = document.createElement('canvas');
-                    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-                    if (!gl) {
-                        alert('WebGL is not supported in your browser. Please enable WebGL in your browser settings or try a different browser.');
-                        return;
-                    }
-                    // If WebGL is supported but renderer creation failed, try minimal settings
-                    renderer = new THREE.WebGLRenderer();
+                    renderer = new THREE.WebGLRenderer(config);
+                    rendererCreated = true;
+                    console.log('WebGL renderer created successfully with config:', config);
+                    break;
+                } catch (error) {
+                    console.warn('Failed to create renderer with config:', config, error);
+                    continue;
                 }
+            }
+            
+            if (!rendererCreated) {
+                console.error('All renderer creation attempts failed');
+                alert('Failed to create WebGL renderer. This may be due to:\n- WebGL being disabled in browser settings\n- GPU driver issues\n- Browser compatibility\n\nPlease try refreshing the page or using a different browser.');
+                return;
             }
             
             // Configure renderer
@@ -452,7 +458,7 @@
                 container.appendChild(renderer.domElement);
             } catch (error) {
                 console.error('Failed to configure renderer:', error);
-                alert('Failed to initialize WebGL renderer. Please refresh the page or try a different browser.');
+                alert('Failed to configure WebGL renderer. Please refresh the page.');
                 return;
             }
             
