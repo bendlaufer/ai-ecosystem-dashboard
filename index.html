@@ -401,12 +401,6 @@
         
         // Initialize
         function init() {
-            // Check if WebGL is supported
-            if (!window.WebGLRenderingContext) {
-                alert('WebGL is not supported in your browser. Please use a modern browser like Chrome, Firefox, or Safari.');
-                return;
-            }
-            
             // Create scene
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x1a1a2e);
@@ -415,26 +409,51 @@
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             camera.position.set(0, 0, CONFIG.cameraDistance);
             
-            // Create renderer with error handling
+            // Create renderer with error handling and fallback options
+            const container = document.getElementById('canvas-container');
+            // Remove existing canvas if present
+            while (container.firstChild) {
+                container.removeChild(container.firstChild);
+            }
+            
             try {
+                // Try creating renderer with optimal settings first
                 renderer = new THREE.WebGLRenderer({ 
                     antialias: true,
                     powerPreference: "high-performance",
                     preserveDrawingBuffer: false
                 });
-                renderer.setSize(window.innerWidth, window.innerHeight);
-                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Cap pixel ratio for performance
-                
-                const container = document.getElementById('canvas-container');
-                // Remove existing canvas if present
-                while (container.firstChild) {
-                    container.removeChild(container.firstChild);
+            } catch (error) {
+                console.warn('Failed to create renderer with optimal settings, trying fallback:', error);
+                try {
+                    // Fallback: simpler settings
+                    renderer = new THREE.WebGLRenderer({ 
+                        antialias: false,
+                        preserveDrawingBuffer: false
+                    });
+                } catch (error2) {
+                    console.error('Failed to create WebGL renderer:', error2);
+                    // Check if WebGL is actually supported
+                    const canvas = document.createElement('canvas');
+                    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                    if (!gl) {
+                        alert('WebGL is not supported in your browser. Please enable WebGL in your browser settings or try a different browser.');
+                        return;
+                    }
+                    // If WebGL is supported but renderer creation failed, try minimal settings
+                    renderer = new THREE.WebGLRenderer();
                 }
+            }
+            
+            // Configure renderer
+            try {
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); // Cap pixel ratio for performance
                 container.appendChild(renderer.domElement);
             } catch (error) {
-                console.error('Failed to create WebGL renderer:', error);
-                alert('WebGL is not supported or failed to initialize. Please check your browser settings or try a different browser.');
-                throw error;
+                console.error('Failed to configure renderer:', error);
+                alert('Failed to initialize WebGL renderer. Please refresh the page or try a different browser.');
+                return;
             }
             
             // Add lights
