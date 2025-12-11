@@ -269,16 +269,8 @@
                 Explore the AI model ecosystem network in 3D
             </p>
             
-            <div class="data-source-selector">
-                <label for="data-source">Data Source:</label>
-                <select id="data-source">
-                    <option value="mini">Mini Sample (zera09/SmolVLM component)</option>
-                    <option value="full">Full Dataset (search all models)</option>
-                </select>
-            </div>
-            
             <div class="control-group">
-                <label for="search">Search Model ID:</label>
+                <label for="search">Enter Model ID:</label>
                 <div class="autocomplete-container">
                     <input type="text" id="search" placeholder="Type to search... (e.g., zera09/SmolVLM)">
                     <div id="autocomplete-results"></div>
@@ -320,8 +312,8 @@
             </div>
             
             <div class="control-group">
-                <label for="edge-opacity">Edge Opacity: <span id="edge-opacity-value">0.3</span></label>
-                <input type="range" id="edge-opacity" min="0" max="1" step="0.1" value="0.3">
+                <label for="edge-opacity">Edge Opacity: <span id="edge-opacity-value">0.5</span></label>
+                <input type="range" id="edge-opacity" min="0" max="1" step="0.1" value="0.5">
             </div>
         </div>
         
@@ -330,11 +322,6 @@
             <p id="node-details"></p>
         </div>
         
-        <div id="stats">
-            <div><strong>Nodes:</strong> <span id="node-count">0</span></div>
-            <div><strong>Edges:</strong> <span id="edge-count">0</span></div>
-            <div><strong>Selected:</strong> <span id="selected-count">0</span></div>
-        </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -344,7 +331,7 @@
         // Configuration
         const CONFIG = {
             nodeBaseSize: 0.5,
-            edgeOpacity: 0.3,
+            edgeOpacity: 0.5,
             cameraDistance: 50,
             animationSpeed: 0.02
         };
@@ -385,7 +372,7 @@
         // NO client-side index - use server-side APIs instead
         // This prevents loading 1.86M entries into browser memory
         let graphData = null;  // Currently loaded component data
-        let useFullDataset = false;  // Toggle between mini and full dataset
+        let useFullDataset = true;  // Always use full dataset
         let selectedNode = null;
         let raycaster, mouse;
         let animationId;
@@ -449,7 +436,7 @@
         
         // Search models - local search only (server-side search disabled due to performance)
         function searchModels(query, limit = 10) {
-            // Always search locally in loaded data (mini dataset)
+            // Search is disabled - user must enter exact model ID
             if (!graphData || !graphData.nodes) return [];
             
             const queryLower = query.toLowerCase();
@@ -571,10 +558,32 @@
             }
         }
         
-        // Initial load: Load mini dataset by default
+        // Initial load: Load component 192 (zera09/SmolVLM) by default
         async function loadGraphData() {
-            // Start with mini dataset (fast, no server calls)
-            await loadMiniDataset();
+            // Always start with component 192 (contains zera09/SmolVLM)
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('loading').textContent = 'Loading component 192 (zera09/SmolVLM)...';
+            
+            try {
+                graphData = await loadComponentById(192);
+                
+                document.getElementById('component-info').textContent = 
+                    `${graphData.nodes.length} nodes, ${graphData.edges.length} edges (zera09/SmolVLM)`;
+                
+                createGraph();
+                // Restart animation for new graph - ensure it starts
+                if (animationId === null && nodes.length > 0) {
+                    animate();
+                }
+                // Force initial render
+                controls.update();
+                renderer.render(scene, camera);
+                document.getElementById('loading').style.display = 'none';
+            } catch (error) {
+                console.error('Error loading default component:', error);
+                document.getElementById('loading').textContent = `Error loading component: ${error.message}`;
+                document.getElementById('loading').style.display = 'block';
+            }
         }
         
         // Note: findConnectedComponent removed - components are now loaded directly from R2
@@ -747,9 +756,6 @@
                 edgeLines.push(line);
             });
             
-            // Update stats
-            document.getElementById('node-count').textContent = graphData.nodes.length;
-            document.getElementById('edge-count').textContent = graphData.edges.length;
             
             // Center camera on graph
             if (nodes.length > 0) {
@@ -1008,36 +1014,9 @@
             });
         }
         
-        // Load component for a given model ID (async, loads from R2 or mini dataset)
+        // Load component for a given model ID (async, loads from R2)
         async function loadComponent(nodeId) {
-            if (!useFullDataset) {
-                // In mini mode, just search within the loaded mini dataset
-                if (!graphData || !graphData.nodes) {
-                    alert('Mini dataset not loaded. Please wait for it to load.');
-                    return;
-                }
-                
-                const node = graphData.nodes.find(n => n.id === nodeId);
-                if (!node) {
-                    alert(`Model "${nodeId}" not found in mini dataset. Switch to "Full Dataset" to search all models.`);
-                    return;
-                }
-                
-                // Mini dataset is already loaded, just show info
-                document.getElementById('component-info').textContent = 
-                    `Mini Sample: ${graphData.nodes.length} nodes, ${graphData.edges.length} edges`;
-                createGraph();
-                // Restart animation for new graph - ensure it starts
-                if (animationId === null && nodes.length > 0) {
-                    animate();
-                }
-                // Force initial render
-                controls.update();
-                renderer.render(scene, camera);
-                return;
-            }
-            
-            // Full dataset mode - use server-side lookup API
+            // Always use server-side lookup API
             
             document.getElementById('loading').style.display = 'block';
             document.getElementById('loading').textContent = `Loading component for ${nodeId}...`;
@@ -1046,7 +1025,7 @@
                 graphData = await loadComponentForModel(nodeId);
                 
                 document.getElementById('component-info').textContent = 
-                    `Component: ${graphData.nodes.length} nodes, ${graphData.edges.length} edges (${nodeId})`;
+                    `${graphData.nodes.length} nodes, ${graphData.edges.length} edges (${nodeId})`;
                 
                 createGraph();
                 // Restart animation for new graph - ensure it starts
