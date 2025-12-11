@@ -445,6 +445,13 @@
                     `${graphData.nodes.length} nodes, ${graphData.edges.length} edges (zera09/SmolVLM)`;
                 
                 createGraph();
+                
+                // For large graphs, pre-compute layout before animating
+                const isLargeGraph = nodes.length > 1000;
+                if (isLargeGraph) {
+                    await precomputeLayout(500, 0.01);
+                }
+                
                 // Restart animation for new graph - ensure it starts
                 if (animationId === null && nodes.length > 0) {
                     animate();
@@ -452,7 +459,9 @@
                 // Force initial render
                 controls.update();
                 renderer.render(scene, camera);
-                document.getElementById('loading').style.display = 'none';
+                if (!isLargeGraph) {
+                    document.getElementById('loading').style.display = 'none';
+                }
             } catch (error) {
                 console.error('Error loading default component:', error);
                 document.getElementById('loading').textContent = `Error loading component: ${error.message}`;
@@ -946,6 +955,13 @@
                     `${graphData.nodes.length} nodes, ${graphData.edges.length} edges (${nodeId})`;
                 
                 createGraph();
+                
+                // For large graphs, pre-compute layout before animating
+                const isLargeGraph = nodes.length > 1000;
+                if (isLargeGraph) {
+                    await precomputeLayout(500, 0.01);
+                }
+                
                 // Restart animation for new graph - ensure it starts
                 if (animationId === null && nodes.length > 0) {
                     animate();
@@ -953,7 +969,9 @@
                 // Force initial render
                 controls.update();
                 renderer.render(scene, camera);
-                document.getElementById('loading').style.display = 'none';
+                if (!isLargeGraph) {
+                    document.getElementById('loading').style.display = 'none';
+                }
             } catch (error) {
                 alert(`Model "${nodeId}" not found: ${error.message}`);
                 document.getElementById('loading').style.display = 'none';
