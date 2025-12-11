@@ -386,6 +386,7 @@
         // NO client-side index - use server-side APIs instead
         // This prevents loading 1.86M entries into browser memory
         let graphData = null;  // Currently loaded component data
+        let useFullDataset = false;  // Toggle between mini and full dataset
         let selectedNode = null;
         let raycaster, mouse;
         let animationId;
@@ -469,24 +470,45 @@
             loadGraphData();
         }
         
-        // Search models using server-side API (no client-side index needed)
+        // Search models - uses server-side API for full dataset, local search for mini
         async function searchModels(query, limit = 10) {
-            try {
-                const response = await fetch(`${CDN_URL}/search?q=${encodeURIComponent(query)}&limit=${limit}`, {
-                    method: 'GET',
-                    mode: 'cors'
-                });
+            if (!useFullDataset) {
+                // Search in mini dataset (client-side, fast)
+                if (!graphData || !graphData.nodes) return [];
                 
-                if (!response.ok) {
-                    console.warn('Search API failed, returning empty results');
-                    return [];
+                const queryLower = query.toLowerCase();
+                const matches = [];
+                
+                for (const node of graphData.nodes) {
+                    if (node.id && node.id.toLowerCase().includes(queryLower)) {
+                        matches.push({
+                            id: node.id,
+                            name: node.id.split('/').pop()
+                        });
+                        if (matches.length >= limit) break;
+                    }
                 }
                 
-                const data = await response.json();
-                return data.matches || data.results || [];
-            } catch (error) {
-                console.error('Error searching models:', error);
-                return [];
+                return matches;
+            } else {
+                // Search in full dataset (server-side API)
+                try {
+                    const response = await fetch(`${CDN_URL}/search?q=${encodeURIComponent(query)}&limit=${limit}`, {
+                        method: 'GET',
+                        mode: 'cors'
+                    });
+                    
+                    if (!response.ok) {
+                        console.warn('Search API failed, returning empty results');
+                        return [];
+                    }
+                    
+                    const data = await response.json();
+                    return data.matches || data.results || [];
+                } catch (error) {
+                    console.error('Error searching models:', error);
+                    return [];
+                }
             }
         }
         
@@ -561,56 +583,36 @@
             return componentData;
         }
         
-        // Initial load: Auto-load default component (no index loading needed)
-        async function loadGraphData() {
+        // Load mini dataset (local file, fast)
+        async function loadMiniDataset() {
             try {
-                // Auto-load the connected component for zera09/SmolVLM
-                const defaultModelId = 'zera09/SmolVLM';
-                console.log(`Auto-loading component for ${defaultModelId}...`);
-                document.getElementById('loading').textContent = `Loading component for ${defaultModelId}...`;
+                console.log('Loading mini dataset...');
+                document.getElementById('loading').textContent = 'Loading mini dataset...';
                 
-                try {
-                    graphData = await loadComponentForModel(defaultModelId);
-                    
-                    document.getElementById('component-info').textContent = 
-                        `Component: ${graphData.nodes.length} nodes, ${graphData.edges.length} edges (${defaultModelId})`;
-                    createGraph();
-                    document.getElementById('loading').style.display = 'none';
-                } catch (error) {
-                    console.warn(`Model ${defaultModelId} not found:`, error);
-                    document.getElementById('component-info').textContent = 
-                        `Model ${defaultModelId} not found. Search for a model to load its component.`;
-                    graphData = { nodes: [], edges: [], metadata: {} };
-                    createGraph();
-                    document.getElementById('loading').style.display = 'none';
+                const response = await fetch('graph_data_mini.json');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 
+                graphData = await response.json();
+                console.log('Mini dataset loaded:', graphData.nodes.length, 'nodes,', graphData.edges.length, 'edges');
+                
+                document.getElementById('component-info').textContent = 
+                    `Mini Sample: ${graphData.nodes.length} nodes, ${graphData.edges.length} edges (zera09/SmolVLM component)`;
+                createGraph();
+                document.getElementById('loading').style.display = 'none';
                 animate();
             } catch (error) {
-                console.error('Error loading graph data:', error);
-                
-                let errorMessage = `Error loading component: ${error.message}. `;
-                
-                if (error.name === 'AbortError') {
-                    errorMessage += 'Request timed out. Please try again.';
-                } else if (error.message.includes('404') || error.message.includes('not found')) {
-                    errorMessage += 'Component not found. Try searching for a different model.';
-                } else if (error.message.includes('CORS') || error.message.includes('Failed to fetch')) {
-                    errorMessage += 'Network or CORS error. Check your connection and try again.';
-                } else {
-                    errorMessage += 'Try refreshing the page or check the browser console for details.';
-                }
-                
-                document.getElementById('loading').textContent = errorMessage;
+                console.error('Error loading mini dataset:', error);
+                document.getElementById('loading').textContent = `Error loading mini dataset: ${error.message}`;
                 document.getElementById('loading').style.display = 'block';
-                
-                // Log full error for debugging
-                console.error('Full error details:', {
-                    name: error.name,
-                    message: error.message,
-                    stack: error.stack
-                });
             }
+        }
+        
+        // Initial load: Load mini dataset by default
+        async function loadGraphData() {
+            // Start with mini dataset (fast, no server calls)
+            await loadMiniDataset();
         }
         
         // Note: findConnectedComponent removed - components are now loaded directly from R2
@@ -955,11 +957,25 @@
         
         // Setup UI controls
         function setupUIControls() {
-            // Data source selector (now just for display - we always use component-based loading)
-            // Remove or hide the data source selector since we always use components
+            // Data source selector - toggle between mini and full dataset
             const dataSourceSelect = document.getElementById('data-source');
             if (dataSourceSelect) {
-                dataSourceSelect.style.display = 'none'; // Hide since we always use component-based
+                dataSourceSelect.addEventListener('change', async (e) => {
+                    const wasFull = useFullDataset;
+                    useFullDataset = e.target.value === 'full';
+                    
+                    if (useFullDataset && !wasFull) {
+                        // Switching to full dataset - show message
+                        document.getElementById('loading').style.display = 'block';
+                        document.getElementById('loading').textContent = 'Switched to full dataset mode. You can now search all models.';
+                        setTimeout(() => {
+                            document.getElementById('loading').style.display = 'none';
+                        }, 2000);
+                    } else if (!useFullDataset && wasFull) {
+                        // Switching back to mini - reload mini dataset
+                        await loadMiniDataset();
+                    }
+                });
             }
             
             // Search functionality
@@ -1028,9 +1044,29 @@
             });
         }
         
-        // Load component for a given model ID (async, loads from R2)
+        // Load component for a given model ID (async, loads from R2 or mini dataset)
         async function loadComponent(nodeId) {
-            // No index loading needed - uses server-side lookup API
+            if (!useFullDataset) {
+                // In mini mode, just search within the loaded mini dataset
+                if (!graphData || !graphData.nodes) {
+                    alert('Mini dataset not loaded. Please wait for it to load.');
+                    return;
+                }
+                
+                const node = graphData.nodes.find(n => n.id === nodeId);
+                if (!node) {
+                    alert(`Model "${nodeId}" not found in mini dataset. Switch to "Full Dataset" to search all models.`);
+                    return;
+                }
+                
+                // Mini dataset is already loaded, just show info
+                document.getElementById('component-info').textContent = 
+                    `Mini Sample: ${graphData.nodes.length} nodes, ${graphData.edges.length} edges`;
+                createGraph();
+                return;
+            }
+            
+            // Full dataset mode - use server-side lookup API
             
             document.getElementById('loading').style.display = 'block';
             document.getElementById('loading').textContent = `Loading component for ${nodeId}...`;
