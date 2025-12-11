@@ -185,55 +185,6 @@
             display: inline-block;
         }
         
-        .autocomplete-container {
-            position: relative;
-        }
-        
-        #autocomplete-results {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: white;
-            border: 1px solid #ddd;
-            border-top: none;
-            border-radius: 0 0 5px 5px;
-            max-height: 200px;
-            overflow-y: auto;
-            z-index: 200;
-            display: none;
-        }
-        
-        .autocomplete-item {
-            padding: 10px;
-            cursor: pointer;
-            border-bottom: 1px solid #eee;
-        }
-        
-        .autocomplete-item:hover {
-            background: #f5f5f5;
-        }
-        
-        .autocomplete-item:last-child {
-            border-bottom: none;
-        }
-        
-        .autocomplete-item .model-id {
-            font-weight: 600;
-            color: #333;
-        }
-        
-        .autocomplete-item .model-name {
-            color: #666;
-            font-size: 12px;
-            margin-top: 2px;
-        }
-        
-        .autocomplete-item .highlight {
-            background: #fff3cd;
-            font-weight: 600;
-        }
-        
     </style>
 </head>
 <body>
@@ -407,27 +358,6 @@
             
             // Load initial data
             loadGraphData();
-        }
-        
-        // Search models - local search only (server-side search disabled due to performance)
-        function searchModels(query, limit = 10) {
-            // Search is disabled - user must enter exact model ID
-            if (!graphData || !graphData.nodes) return [];
-            
-            const queryLower = query.toLowerCase();
-            const matches = [];
-            
-            for (const node of graphData.nodes) {
-                if (node.id && node.id.toLowerCase().includes(queryLower)) {
-                    matches.push({
-                        id: node.id,
-                        name: node.id.split('/').pop()
-                    });
-                    if (matches.length >= limit) break;
-                }
-            }
-            
-            return matches;
         }
         
         // Look up component_id for a model using server-side API (no client-side index needed)
