@@ -302,6 +302,7 @@
         let selectedNode = null;
         let raycaster, mouse;
         let animationId;
+        let hasChildren = new Set();  // Track which nodes have children (for color management)
         
         // Edge type colors
         const EDGE_COLORS = {
@@ -564,7 +565,7 @@
             }
             
             // Build map of which nodes have children
-            const hasChildren = new Set();
+            hasChildren.clear();
             graphData.edges.forEach(edge => {
                 hasChildren.add(edge.source);
             });
@@ -755,23 +756,33 @@
                 const clickedMesh = intersects[0].object;
                 const nodeData = clickedMesh.userData.nodeData;
                 
-                showNodeInfo(nodeData);
-                
-                // Highlight selected node
-                if (selectedNode) {
-                    selectedNode.material.emissive.setHex(selectedNode.userData.nodeData.id === nodeData.id ? 0x000000 : 
-                        (hasChildren.has(selectedNode.userData.nodeData.id) ? 0x330000 : 0x003333));
+                // If clicking the same node, do nothing
+                if (selectedNode === clickedMesh) {
+                    return;
                 }
                 
+                // Deselect old node if one is selected
+                if (selectedNode) {
+                    const oldNodeData = selectedNode.userData.nodeData;
+                    // Reset to original emissive color based on whether it has children
+                    selectedNode.material.emissive.setHex(
+                        hasChildren.has(oldNodeData.id) ? 0x330000 : 0x003333
+                    );
+                }
+                
+                // Select new node
                 clickedMesh.material.emissive.setHex(0xffff00);
                 selectedNode = clickedMesh;
+                
+                showNodeInfo(nodeData);
             } else {
+                // Clicked outside any node - deselect
                 hideNodeInfo();
                 if (selectedNode) {
-                    const hasChildren = new Set();
-                    graphData.edges.forEach(edge => hasChildren.add(edge.source));
+                    const oldNodeData = selectedNode.userData.nodeData;
+                    // Reset to original emissive color based on whether it has children
                     selectedNode.material.emissive.setHex(
-                        hasChildren.has(selectedNode.userData.nodeData.id) ? 0x330000 : 0x003333
+                        hasChildren.has(oldNodeData.id) ? 0x330000 : 0x003333
                     );
                     selectedNode = null;
                 }
