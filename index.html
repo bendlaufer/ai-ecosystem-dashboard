@@ -885,16 +885,6 @@
             });
         }
         
-        // Highlight search match in text
-        function highlightMatch(text, query) {
-            const index = text.toLowerCase().indexOf(query.toLowerCase());
-            if (index === -1) return text;
-            
-            return text.substring(0, index) +
-                   `<span class="highlight">${text.substring(index, index + query.length)}</span>` +
-                   text.substring(index + query.length);
-        }
-        
         // Start the application
         init();
     </script>
