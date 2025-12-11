@@ -854,7 +854,8 @@
         // Show node info
         function showNodeInfo(nodeData) {
             const infoPanel = document.getElementById('info-panel');
-            document.getElementById('node-name').textContent = nodeData.name || nodeData.id;
+            // Always show the full model ID (including the part before "/")
+            document.getElementById('node-name').textContent = nodeData.id || nodeData.name || 'Unknown Model';
             
             const details = [];
             if (nodeData.likes) details.push(`Likes: ${nodeData.likes.toLocaleString()}`);
