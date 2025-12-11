@@ -629,13 +629,25 @@
             nodeMeshes.forEach(mesh => {
                 scene.remove(mesh);
                 if (mesh.geometry) mesh.geometry.dispose();
-                if (mesh.material) mesh.material.dispose();
+                if (mesh.material) {
+                    if (Array.isArray(mesh.material)) {
+                        mesh.material.forEach(mat => mat.dispose());
+                    } else {
+                        mesh.material.dispose();
+                    }
+                }
             });
             
             edgeLines.forEach(line => {
                 scene.remove(line);
                 if (line.geometry) line.geometry.dispose();
-                if (line.material) line.material.dispose();
+                if (line.material) {
+                    if (Array.isArray(line.material)) {
+                        line.material.forEach(mat => mat.dispose());
+                    } else {
+                        line.material.dispose();
+                    }
+                }
             });
             
             // Clear arrays
@@ -649,6 +661,11 @@
             layoutStableCount = 0;
             layoutPaused = false;
             lastLayoutUpdate = 0;
+            
+            // Force garbage collection hint (if available)
+            if (window.gc) {
+                window.gc();
+            }
             
             // If no graph data, return early
             if (!graphData || !graphData.nodes || graphData.nodes.length === 0) {
