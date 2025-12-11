@@ -608,14 +608,15 @@
                 }
             });
             
-            // Clear arrays
+            // Clear arrays and reset all state
             nodeMeshes = [];
             edgeLines = [];
             nodes = [];
             edges = [];
             nodeMap.clear();
             
-            // Reset state
+            // Reset animation state
+            animationId = null;
             
             // Force garbage collection hint (if available)
             if (window.gc) {
@@ -737,8 +738,12 @@
             const repulsion = 0.1;
             const attraction = 0.01;
             
-            // Reset forces
+            // Reset forces (reset velocities for fresh start)
             nodes.forEach(node => {
+                // Reset velocity to zero for new graphs, otherwise apply damping
+                if (!node.velocity) {
+                    node.velocity = new THREE.Vector3();
+                }
                 node.velocity.multiplyScalar(0.9); // Damping
             });
             
@@ -996,6 +1001,8 @@
                     `Component: ${graphData.nodes.length} nodes, ${graphData.edges.length} edges (${nodeId})`;
                 
                 createGraph();
+                // Restart animation for new graph
+                animate();
                 document.getElementById('loading').style.display = 'none';
             } catch (error) {
                 alert(`Model "${nodeId}" not found: ${error.message}`);
