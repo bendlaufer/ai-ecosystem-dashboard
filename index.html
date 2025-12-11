@@ -470,13 +470,6 @@
                     `${graphData.nodes.length} nodes, ${graphData.edges.length} edges (zera09/SmolVLM)`;
                 
                 createGraph();
-                
-                // For very large graphs (>10,000 nodes), pre-compute layout before animating
-                const isVeryLargeGraph = nodes.length > 10000;
-                if (isVeryLargeGraph) {
-                    await precomputeLayout(500, 0.01);
-                }
-                
                 // Restart animation for new graph - ensure it starts
                 if (animationId === null && nodes.length > 0) {
                     animate();
@@ -484,9 +477,7 @@
                 // Force initial render
                 controls.update();
                 renderer.render(scene, camera);
-                if (!isVeryLargeGraph) {
-                    document.getElementById('loading').style.display = 'none';
-                }
+                document.getElementById('loading').style.display = 'none';
             } catch (error) {
                 console.error('Error loading default component:', error);
                 document.getElementById('loading-text').textContent = `Error loading component: ${error.message}`;
@@ -685,16 +676,18 @@
             if (nodes.length === 0) return;
             
             const nodeCount = nodes.length;
-            const isVeryLargeGraph = nodeCount > 10000;
+            const isLargeGraph = nodeCount > 1200;
             
             // Adaptive force parameters based on graph size
-            // For very large graphs, use smaller forces and higher damping for stability
-            const baseRepulsion = isVeryLargeGraph ? 0.05 : 0.1;
-            const baseAttraction = isVeryLargeGraph ? 0.005 : 0.01;
-            const damping = isVeryLargeGraph ? 0.85 : 0.9; // Higher damping for very large graphs
+            // For large graphs (>1200 nodes), use smaller forces and higher damping for stability
+            const baseRepulsion = isLargeGraph ? 0.02 : 0.1;
+            const baseAttraction = isLargeGraph ? 0.002 : 0.01;
+            const damping = isLargeGraph ? 0.8 : 0.9; // Higher damping for large graphs
             
-            // Scale forces inversely with graph size to prevent explosion
-            const repulsion = baseRepulsion / Math.sqrt(nodeCount / 100);
+            // Scale repulsion inversely with graph size to prevent explosion
+            // For large graphs, scale more aggressively
+            const repulsionScale = isLargeGraph ? Math.sqrt(nodeCount / 100) : 1;
+            const repulsion = baseRepulsion / repulsionScale;
             const attraction = baseAttraction;
             const k = Math.sqrt((nodeCount * 100) / nodeCount);
             
@@ -861,19 +854,7 @@
             
             animationId = requestAnimationFrame(animate);
             
-            // For very large graphs that were pre-computed, use minimal animation
-            // For smaller graphs, normal animation
-            const isVeryLargeGraph = nodes.length > 10000;
-            const maxVelocity = updateLayout(1);
-            
-            // Stop animation if layout is stable (for very large graphs)
-            if (isVeryLargeGraph && maxVelocity < 0.01) {
-                // Still update edges and render, but don't continue animating
-                controls.update();
-                renderer.render(scene, camera);
-                return; // Don't continue animation loop
-            }
-            
+            updateLayout(1);
             controls.update();
             renderer.render(scene, camera);
         }
@@ -1004,13 +985,6 @@
                     `${graphData.nodes.length} nodes, ${graphData.edges.length} edges (${nodeId})`;
                 
                 createGraph();
-                
-                // For very large graphs (>10,000 nodes), pre-compute layout before animating
-                const isVeryLargeGraph = nodes.length > 10000;
-                if (isVeryLargeGraph) {
-                    await precomputeLayout(500, 0.01);
-                }
-                
                 // Restart animation for new graph - ensure it starts
                 if (animationId === null && nodes.length > 0) {
                     animate();
@@ -1018,9 +992,7 @@
                 // Force initial render
                 controls.update();
                 renderer.render(scene, camera);
-                if (!isVeryLargeGraph) {
-                    document.getElementById('loading').style.display = 'none';
-                }
+                document.getElementById('loading').style.display = 'none';
             } catch (error) {
                 alert(`Model "${nodeId}" not found: ${error.message}`);
                 document.getElementById('loading').style.display = 'none';
