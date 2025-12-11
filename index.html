@@ -695,6 +695,11 @@
             edges = [];
             nodeMap.clear();
             
+            // Reset layout state
+            layoutStableCount = 0;
+            layoutPaused = false;
+            lastLayoutUpdate = 0;
+            
             // If no graph data, return early
             if (!graphData || !graphData.nodes || graphData.nodes.length === 0) {
                 console.log('No graph data to visualize');
@@ -802,13 +807,15 @@
             }
         }
         
-        // Simple force-directed layout
+        // Simple force-directed layout (returns true if layout is stable)
         function updateLayout() {
-            if (nodes.length === 0) return;
+            if (nodes.length === 0) return true;
             
             const k = Math.sqrt((nodes.length * 100) / nodes.length);
             const repulsion = 0.1;
             const attraction = 0.01;
+            
+            let maxVelocity = 0;
             
             // Reset forces
             nodes.forEach(node => {
@@ -855,9 +862,11 @@
                 }
             });
             
-            // Update positions
+            // Update positions and track max velocity
             nodes.forEach(node => {
                 node.mesh.position.add(node.velocity);
+                const vel = node.velocity.length();
+                if (vel > maxVelocity) maxVelocity = vel;
             });
             
             // Update edge positions
@@ -873,13 +882,44 @@
                     ]);
                 }
             });
+            
+            // Return true if layout is stable (low velocity)
+            return maxVelocity < 0.01;
         }
         
-        // Animation loop
+        // Animation loop with throttled force simulation
+        let lastLayoutUpdate = 0;
+        const LAYOUT_UPDATE_INTERVAL = 100; // Update layout every 100ms instead of every frame (60fps -> 10fps)
+        let layoutStableCount = 0;
+        const STABLE_THRESHOLD = 20; // Stop layout after 20 stable checks
+        let layoutPaused = false;
+        
         function animate() {
             animationId = requestAnimationFrame(animate);
             
-            updateLayout();
+            // Only update layout if not paused
+            if (!layoutPaused) {
+                const now = Date.now();
+                const shouldUpdateLayout = (now - lastLayoutUpdate) >= LAYOUT_UPDATE_INTERVAL;
+                
+                if (shouldUpdateLayout) {
+                    const wasStable = updateLayout(); // Returns true if layout is stable
+                    lastLayoutUpdate = now;
+                    
+                    if (wasStable) {
+                        layoutStableCount++;
+                        // Pause layout updates after it's been stable
+                        if (layoutStableCount > STABLE_THRESHOLD) {
+                            layoutPaused = true;
+                            console.log('Layout stabilized, pausing force simulation');
+                        }
+                    } else {
+                        layoutStableCount = 0; // Reset if not stable
+                    }
+                }
+            }
+            
+            // Always update controls and render (smooth camera movement)
             controls.update();
             renderer.render(scene, camera);
         }
