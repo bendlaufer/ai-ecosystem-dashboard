@@ -105,6 +105,7 @@ export default {
     }
     
     // Handle lookup API: /lookup?model_id=xxx (returns component_id)
+    // Uses chunked index - only loads the relevant chunk
     if (pathname === '/lookup') {
       const modelId = searchParams.get('model_id');
       if (!modelId) {
@@ -118,9 +119,39 @@ export default {
       }
       
       try {
-        const cache = caches.default;
-        const index = await getComponentIndex(cache);
-        const componentId = index[modelId];
+        // Get prefix (first 2 characters) for chunk lookup
+        const prefix = modelId.length >= 2 
+          ? modelId.substring(0, 2).toLowerCase() 
+          : (modelId.length === 1 ? modelId[0].toLowerCase() + '0' : '00');
+        
+        // Normalize prefix (only alphanumeric)
+        const normalizedPrefix = /^[a-z0-9]/.test(prefix[0]) ? prefix : '00';
+        
+        // Load only the relevant chunk
+        const chunkKey = `components/chunks/lookup_${normalizedPrefix}.json.gz`;
+        const chunkObject = await env.AI_ECOSYSTEM_GRAPH.get(chunkKey);
+        
+        if (!chunkObject) {
+          // Chunk not found - model doesn't exist
+          return new Response(JSON.stringify({ error: 'Model not found', component_id: null }), {
+            status: 404,
+            headers: {
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': '*',
+            },
+          });
+        }
+        
+        // Decompress and parse chunk
+        const compressedData = await chunkObject.arrayBuffer();
+        const stream = new DecompressionStream('gzip');
+        const decompressedStream = new Response(compressedData).body.pipeThrough(stream);
+        const decompressedData = await new Response(decompressedStream).arrayBuffer();
+        const jsonText = new TextDecoder().decode(decompressedData);
+        const chunkData = JSON.parse(jsonText);
+        
+        // Look up in chunk
+        const componentId = chunkData.index[modelId];
         
         if (componentId === undefined) {
           return new Response(JSON.stringify({ error: 'Model not found', component_id: null }), {
